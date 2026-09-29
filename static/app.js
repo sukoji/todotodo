@@ -157,6 +157,9 @@ async function toggleCompact(value = !desktopCompact) {
 $('#compact-button').onclick = () => toggleCompact(true);
 $('#expand-button').onclick = () => toggleCompact(false);
 $('#fold-button').onclick = $('#compact-fold').onclick = async () => {try {await window.todoDesktop.fold();} catch(error) {toast(error.message);}};
+document.querySelectorAll('[data-window-action]').forEach(button => {
+  button.onclick = async () => {try {await window.todoDesktop.windowControl(button.dataset.windowAction);} catch(error) {toast(error.message);}};
+});
 $('#compact-form').onsubmit = async event => {
   event.preventDefault();
   const input = $('#compact-input'), title = input.value.trim();

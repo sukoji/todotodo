@@ -259,7 +259,7 @@ function createWindow() {
   const bounds = clampBounds((settings.compact ? settings.compactBounds : settings.normalBounds)[String(display.id)] || defaultBounds, display, settings.compact);
   window = new BrowserWindow({
     ...bounds, minWidth: Math.min(settings.compact ? 300 : 650, area.width), minHeight: Math.min(settings.compact ? 250 : 550, area.height),
-    show: false, backgroundColor: '#faf7ee', title: 'TodoTodo', icon: path.join(__dirname, 'icon.ico'),
+    show: false, frame: false, backgroundColor: '#faf7ee', title: 'TodoTodo', icon: path.join(__dirname, 'icon.ico'),
     webPreferences: {preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false, sandbox: true}
   });
   applyWindowSettings();
@@ -327,6 +327,13 @@ else {
       return true;
     });
     ipcMain.handle('todo:compact', (event, value) => {verifySender(event); return setCompact(value);});
+    ipcMain.handle('todo:window-control', (event, action) => {
+      verifySender(event);
+      if (action === 'minimize') window.minimize();
+      else if (action === 'maximize') {if (window.isMaximized()) window.unmaximize(); else window.maximize();}
+      else if (action === 'close') window.close();
+      else throw new Error('Unknown window action');
+    });
     ipcMain.handle('todo:fold', event => {verifySender(event); foldToEdge(); return true;});
     ipcMain.handle('edge:restore', event => {if (!edgeWindow || event.sender !== edgeWindow.webContents) throw new Error('허용되지 않은 요청입니다.'); restoreFromEdge();});
     ipcMain.handle('edge:side', event => {if (!edgeWindow || event.sender !== edgeWindow.webContents) throw new Error('허용되지 않은 요청입니다.'); return settings.edgeSide;});
