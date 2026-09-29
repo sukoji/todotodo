@@ -3,12 +3,14 @@
 import os
 import re
 import sqlite3
+import sys
 import uuid
 from contextlib import contextmanager
 from datetime import date, datetime
 from pathlib import Path
 
-DB_PATH = Path(os.environ.get("TODOTODO_DB", Path(__file__).with_name("todotodo.db")))
+_default_db = Path(os.environ.get("APPDATA", Path.home())) / "TodoTodo" / "todotodo.db" if getattr(sys, "frozen", False) else Path(__file__).with_name("todotodo.db")
+DB_PATH = Path(os.environ.get("TODOTODO_DB", _default_db))
 KINDS = {"task", "idea", "event"}
 SCOPES = {"work", "personal"}
 STATUSES = {"todo", "doing", "done"}

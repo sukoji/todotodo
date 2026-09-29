@@ -10,6 +10,10 @@
   <link rel="stylesheet" href="./theme.css">
 </head>
 <body>
+  <section class="compact-shell" aria-label="작은 메모 모드">
+    <div class="compact-header"><div class="compact-brand"><img src="./logo.svg" alt="" width="31" height="31"><strong>todotodo</strong></div><div class="compact-controls"><button id="compact-fold" title="화면 가장자리로 접기" aria-label="화면 가장자리로 접기">▸</button><button id="compact-pin" title="창 고정" aria-label="창 고정">◇</button><button id="expand-button" title="큰 화면으로" aria-label="큰 화면으로">⤢</button></div></div>
+    <div class="compact-body"><div class="compact-caption"><strong>오늘의 작은 메모</strong><span id="compact-count">0개 남음</span></div><div id="compact-list"></div><form id="compact-form"><input id="compact-input" maxlength="200" placeholder="할 일 바로 적기…" aria-label="할 일 바로 적기" required><button type="submit" aria-label="추가">＋</button></form></div>
+  </section>
   <div class="app-shell">
     <aside class="sidebar">
       <div class="brand"><img class="brand-logo" src="./logo.svg" alt="" width="43" height="43"><div><strong>todotodo</strong><small>생각이 자라는 작은 책상</small></div></div>
@@ -27,7 +31,7 @@
     </aside>
 
     <main class="main">
-      <header class="topbar"><div class="breadcrumb">나의 공간 <span>/</span> <strong id="breadcrumb-current">오늘</strong></div><div class="top-actions"><span class="local-pill"><i></i> 내 기기에 저장 중</span><button class="pin-button desktop-only" id="pin-button" title="창을 맨 위에 고정" aria-label="창을 맨 위에 고정">◇ <span>창 고정</span></button><button class="icon-button" id="search-button" aria-label="검색">⌕</button><button class="avatar" data-view="connect" aria-label="설정">나</button></div></header>
+      <header class="topbar"><div class="breadcrumb">나의 공간 <span>/</span> <strong id="breadcrumb-current">오늘</strong></div><div class="top-actions"><span class="local-pill"><i></i> 내 기기에 저장 중</span><button class="pin-button desktop-only" id="fold-button" title="화면 가장자리로 접기" aria-label="화면 가장자리로 접기">▸ <span>접어두기</span></button><button class="pin-button desktop-only" id="compact-button" title="작은 메모 모드" aria-label="작은 메모 모드">▤ <span>작게 보기</span></button><button class="pin-button desktop-only" id="pin-button" title="창을 맨 위에 고정" aria-label="창을 맨 위에 고정">◇ <span>창 고정</span></button><button class="icon-button" id="search-button" aria-label="검색">⌕</button><button class="avatar" data-view="connect" aria-label="설정">나</button></div></header>
       <div class="content">
         <section id="home-view" class="view active">
           <div class="page-heading"><div><div class="eyebrow" id="today-label"></div><h1 id="greeting">오늘도 하나씩,</h1><p>머릿속 할 일을 책상 위에 꺼내 놓아요.</p></div><button class="primary-button" data-new="task"><span>＋</span> 새로 적기</button></div>
@@ -47,6 +51,7 @@
   </div>
 
   <dialog id="editor"><form id="editor-form" method="dialog"><div class="dialog-header"><div><span class="mini-label">CAPTURE & CREATE</span><h2 id="dialog-title">새 항목</h2></div><button type="button" class="dialog-close" id="close-dialog" aria-label="닫기">×</button></div><div class="type-row"><label><input type="radio" name="kind" value="task" checked><span>☑ 할 일</span></label><label><input type="radio" name="kind" value="event"><span>▦ 일정</span></label><label><input type="radio" name="kind" value="idea"><span>✦ 아이디어</span></label></div><label class="field">제목<input name="title" maxlength="200" required placeholder="무엇을 기록할까요?" autofocus></label><label class="field">메모<textarea name="details" rows="3" maxlength="10000" placeholder="관련 내용이나 생각을 자유롭게 적어주세요"></textarea></label><div class="field-row"><label class="field">날짜<input name="date" type="date"></label><label class="field">시간<input name="time" type="time"></label></div><div class="field-row"><label class="field">공간<select name="scope"><option value="personal">개인</option><option value="work">업무</option></select></label><label class="field">우선순위<select name="priority"><option value="normal">보통</option><option value="high">높음</option><option value="low">낮음</option></select></label></div><label class="field">태그<input name="tags" maxlength="500" placeholder="예: 프로젝트, 책, 주말"></label><div class="dialog-footer"><button type="button" class="danger-button" id="delete-button" hidden>삭제</button><span class="spacer"></span><button type="button" class="subtle-button" id="cancel-button">취소</button><button class="primary-button" type="submit">저장하기</button></div></form></dialog>
+  <dialog id="ai-result"><div class="dialog-header"><div><span class="mini-label">오늘의 순서</span><h2>AI가 정리한 하루</h2></div><button type="button" class="dialog-close" id="close-ai-result" aria-label="닫기">×</button></div><p class="ai-result-note">현재 공간의 오늘 일정 제목과 시간만 전송했습니다. 제안은 자동으로 저장되지 않아요.</p><div id="ai-result-text"></div><div class="dialog-footer"><span class="spacer"></span><button class="subtle-button" id="copy-ai-result">내용 복사</button><button class="primary-button" id="done-ai-result">닫기</button></div></dialog>
   <div id="toast" role="status" aria-live="polite"></div>
   <script src="./app.js"></script>
 </body>

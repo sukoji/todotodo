@@ -1,12 +1,14 @@
-const {app, BrowserWindow, dialog, ipcMain, Notification, session, systemPreferences} = require('electron');
+const {app, BrowserWindow, dialog, ipcMain, Notification, safeStorage, screen, session, shell, systemPreferences} = require('electron');
 const {spawn} = require('node:child_process');
 const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
+const {brief, providers} = require('./ai');
 
 const root = path.resolve(__dirname, '..');
-let window, server, baseURL, authToken, dbPath, settingsPath, timer;
-const defaults = {alwaysOnTop: false, opacity: 100, notifications: true, reminderMinutes: 10};
+app.setName('TodoTodo');
+let window, edgeWindow, edgeDisplayId, server, baseURL, authToken, dbPath, settingsPath, secretsPath, timer, boundsTimer, movingByApp = false;
+const defaults = {alwaysOnTop: false, opacity: 100, notifications: true, reminderMinutes: 10, compact: false, edgeSide: 'right', normalBounds: {}, compactBounds: {}, lastDisplayId: null};
 let settings = {...defaults};
 const notified = new Set();
 
@@ -21,13 +23,151 @@ function loadSettings() {
   } catch { settings = {...defaults}; }
 }
 
+function readSecrets() {
+  try {return JSON.parse(fs.readFileSync(secretsPath, 'utf8'));}
+  catch {return {};}
+}
+
+function saveProviderKey(provider, key) {
+  if (!providers[provider] || typeof key !== 'string') throw new Error('AI 연결 정보를 확인하세요.');
+  const secrets = readSecrets();
+  if (key.trim()) {
+    if (!safeStorage.isEncryptionAvailable()) throw new Error('이 컴퓨터에서 안전한 키 저장소를 사용할 수 없습니다.');
+    secrets[provider] = safeStorage.encryptString(key.trim()).toString('base64');
+  } else delete secrets[provider];
+  fs.writeFileSync(secretsPath, JSON.stringify(secrets), {mode: 0o600});
+  return {openai: Boolean(secrets.openai), anthropic: Boolean(secrets.anthropic)};
+}
+
+function providerKey(provider) {
+  if (!providers[provider]) throw new Error('지원하지 않는 AI 제공자입니다.');
+  const encrypted = readSecrets()[provider];
+  if (!encrypted) throw new Error('먼저 API 키를 연결하세요.');
+  if (!safeStorage.isEncryptionAvailable()) throw new Error('보안 저장소를 사용할 수 없습니다.');
+  return safeStorage.decryptString(Buffer.from(encrypted, 'base64'));
+}
+
+async function makeAIBrief(provider, scope) {
+  if (!['all', 'work', 'personal'].includes(scope)) throw new Error('공간 선택을 확인하세요.');
+  const now = new Date();
+  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  const items = await requestAPI(`/api/items?start=${today}&end=${today}`);
+  const selected = items.filter(item => item.status !== 'done' && item.kind !== 'idea' && (scope === 'all' || item.scope === scope));
+  return brief(provider, providerKey(provider), selected);
+}
+
+function currentDisplay() {
+  return screen.getDisplayMatching(window.getBounds());
+}
+
+function clampBounds(bounds, display, compact = false) {
+  const area = display.workArea;
+  const width = Math.min(area.width, Math.max(compact ? 300 : 650, bounds.width));
+  const height = Math.min(area.height, Math.max(compact ? 250 : 550, bounds.height));
+  return {
+    x: Math.max(area.x, Math.min(bounds.x, area.x + area.width - width)),
+    y: Math.max(area.y, Math.min(bounds.y, area.y + area.height - height)),
+    width, height
+  };
+}
+
+function rememberBounds() {
+  if (!window || window.isDestroyed() || movingByApp || window.isMaximized()) return;
+  const display = currentDisplay();
+  const key = settings.compact ? 'compactBounds' : 'normalBounds';
+  settings[key][String(display.id)] = window.getBounds();
+  settings.lastDisplayId = display.id;
+  saveSettings();
+}
+
+function resizeWindow(target) {
+  const start = window.getBounds();
+  const reduced = systemPreferences.getAnimationSettings().prefersReducedMotion;
+  movingByApp = true;
+  if (reduced) {window.setBounds(target); movingByApp = false; rememberBounds(); return;}
+  const started = Date.now();
+  const tick = () => {
+    if (!window || window.isDestroyed()) return;
+    const t = Math.min(1, (Date.now() - started) / 280);
+    const eased = 1 - Math.pow(1 - t, 3);
+    const value = key => Math.round(start[key] + (target[key] - start[key]) * eased);
+    window.setBounds({x: value('x'), y: value('y'), width: value('width'), height: value('height')});
+    if (t < 1) setTimeout(tick, 16);
+    else {movingByApp = false; rememberBounds();}
+  };
+  tick();
+}
+
+function setCompact(value) {
+  if (typeof value !== 'boolean') throw new Error('잘못된 창 모드입니다.');
+  if (value === settings.compact) return settings;
+  const display = currentDisplay(), id = String(display.id), area = display.workArea;
+  const oldKey = settings.compact ? 'compactBounds' : 'normalBounds';
+  if (!window.isMaximized()) settings[oldKey][id] = window.getBounds();
+  settings.compact = value;
+  const saved = settings[value ? 'compactBounds' : 'normalBounds'][id];
+  const fallback = value
+    ? {x: area.x + area.width - 352, y: area.y + area.height - 306, width: 336, height: 290}
+    : {x: area.x + Math.round((area.width - 1180) / 2), y: area.y + Math.round((area.height - 780) / 2), width: 1180, height: 780};
+  const target = clampBounds(saved || fallback, display, value);
+  if (window.isMaximized()) window.unmaximize();
+  window.setMinimumSize(Math.min(value ? 300 : 650, area.width), Math.min(value ? 250 : 550, area.height));
+  window.webContents.send('todo:compact', value);
+  resizeWindow(target);
+  saveSettings();
+  return settings;
+}
+
+function keepWindowVisible() {
+  if (!window || window.isDestroyed()) return;
+  const display = currentDisplay(), bounds = window.getBounds();
+  window.setMinimumSize(Math.min(settings.compact ? 300 : 650, display.workArea.width), Math.min(settings.compact ? 250 : 550, display.workArea.height));
+  const safe = clampBounds(bounds, display, settings.compact);
+  if (JSON.stringify(bounds) !== JSON.stringify(safe)) window.setBounds(safe);
+  if (edgeWindow && edgeWindow.isVisible()) positionEdge();
+}
+
+function positionEdge() {
+  if (!edgeWindow || edgeWindow.isDestroyed()) return;
+  const display = screen.getAllDisplays().find(item => item.id === edgeDisplayId) || screen.getPrimaryDisplay();
+  edgeDisplayId = display.id;
+  const area = display.workArea;
+  const x = settings.edgeSide === 'left' ? area.x : area.x + area.width - 48;
+  edgeWindow.setBounds({x, y: area.y + Math.round((area.height - 88) / 2), width: 48, height: 88});
+}
+
+function foldToEdge() {
+  edgeDisplayId = currentDisplay().id;
+  if (!edgeWindow || edgeWindow.isDestroyed()) {
+    edgeWindow = new BrowserWindow({
+      width: 48, height: 88, frame: false, transparent: true, resizable: false,
+      alwaysOnTop: true, skipTaskbar: true, show: false,
+      webPreferences: {preload: path.join(__dirname, 'edge-preload.js'), contextIsolation: true, nodeIntegration: false, sandbox: true}
+    });
+    edgeWindow.loadFile(path.join(root, 'static', 'edge.html'));
+    edgeWindow.webContents.on('will-navigate', event => event.preventDefault());
+    edgeWindow.webContents.setWindowOpenHandler(() => ({action: 'deny'}));
+  }
+  positionEdge();
+  window.hide();
+  edgeWindow.show();
+}
+
+function restoreFromEdge() {
+  if (edgeWindow) edgeWindow.hide();
+  keepWindowVisible();
+  window.show();
+  window.focus();
+}
+
 function startServer() {
   return new Promise((resolve, reject) => {
-    const executable = process.env.TODOTODO_PYTHON || (process.platform === 'win32' ? 'python' : 'python3');
+    const executable = app.isPackaged ? path.join(process.resourcesPath, 'backend', 'todotodo-backend.exe') : (process.env.TODOTODO_PYTHON || (process.platform === 'win32' ? 'python' : 'python3'));
+    const args = app.isPackaged ? [] : ['-u', path.join(root, 'app.py')];
     authToken = crypto.randomBytes(32).toString('hex');
-    server = spawn(executable, ['-u', path.join(root, 'app.py')], {
-      cwd: root, windowsHide: true,
-      env: {...process.env, TODOTODO_DB: dbPath, TODOTODO_PORT: '0', TODOTODO_TOKEN: authToken},
+    server = spawn(executable, args, {
+      cwd: app.isPackaged ? process.resourcesPath : root, windowsHide: true,
+      env: {...process.env, PYTHONUNBUFFERED: '1', TODOTODO_DB: dbPath, TODOTODO_PORT: '0', TODOTODO_TOKEN: authToken},
       stdio: ['ignore', 'pipe', 'pipe']
     });
     let output = '';
@@ -41,6 +181,17 @@ function startServer() {
     server.on('error', error => {clearTimeout(timeout); reject(error);});
     server.on('exit', code => {if (!baseURL) {clearTimeout(timeout); reject(new Error(`데이터 서버 종료: ${code}`));}});
   });
+}
+
+function agentExecutable() {
+  const source = path.join(process.resourcesPath, 'backend', 'todotodo-mcp.exe');
+  const folder = path.join(app.getPath('userData'), 'agents', app.getVersion());
+  const destination = path.join(folder, 'todotodo-mcp.exe');
+  if (!fs.existsSync(destination)) {
+    fs.mkdirSync(folder, {recursive: true});
+    fs.copyFileSync(source, destination);
+  }
+  return destination;
 }
 
 async function requestAPI(endpoint, method = 'GET', body = null) {
@@ -67,17 +218,22 @@ function setSetting(key, value) {
     if (!Number.isInteger(value) || value < 45 || value > 100) throw new Error('투명도 범위를 확인하세요.');
   } else if (key === 'reminderMinutes') {
     if (![0, 5, 10, 30].includes(value)) throw new Error('알림 시점을 확인하세요.');
+  } else if (key === 'edgeSide') {
+    if (!['left', 'right'].includes(value)) throw new Error('창 가장자리를 확인하세요.');
   } else throw new Error('알 수 없는 설정입니다.');
   settings[key] = value;
   saveSettings();
   if (key === 'alwaysOnTop' || key === 'opacity') applyWindowSettings();
+  if (key === 'edgeSide') positionEdge();
   return settings;
 }
 
 async function checkReminders() {
   if (!settings.notifications || !Notification.isSupported()) return;
   try {
-    const items = await requestAPI('/api/items');
+    const dateKey = value => `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, '0')}-${String(value.getDate()).padStart(2, '0')}`;
+    const today = new Date(), tomorrow = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1);
+    const items = await requestAPI(`/api/items?start=${dateKey(today)}&end=${dateKey(tomorrow)}`);
     const now = Date.now();
     for (const item of items) {
       if (item.status === 'done' || !item.date || !item.time || item.kind === 'idea') continue;
@@ -95,8 +251,14 @@ async function checkReminders() {
 }
 
 function createWindow() {
+  const display = screen.getAllDisplays().find(item => item.id === settings.lastDisplayId) || screen.getPrimaryDisplay();
+  const area = display.workArea;
+  const defaultBounds = settings.compact
+    ? {x: area.x + area.width - 352, y: area.y + area.height - 306, width: 336, height: 290}
+    : {x: area.x + Math.round((area.width - 1180) / 2), y: area.y + Math.round((area.height - 780) / 2), width: 1180, height: 780};
+  const bounds = clampBounds((settings.compact ? settings.compactBounds : settings.normalBounds)[String(display.id)] || defaultBounds, display, settings.compact);
   window = new BrowserWindow({
-    width: 1180, height: 780, minWidth: 650, minHeight: 550,
+    ...bounds, minWidth: Math.min(settings.compact ? 300 : 650, area.width), minHeight: Math.min(settings.compact ? 250 : 550, area.height),
     show: false, backgroundColor: '#faf7ee', title: 'TodoTodo', icon: path.join(__dirname, 'icon.ico'),
     webPreferences: {preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false, sandbox: true}
   });
@@ -105,6 +267,7 @@ function createWindow() {
     const motion = systemPreferences.getAnimationSettings();
     if (motion.prefersReducedMotion || !motion.shouldRenderRichAnimation) {window.show(); return;}
     const bounds = window.getBounds(), targetOpacity = settings.opacity / 100;
+    movingByApp = true;
     window.setPosition(bounds.x, bounds.y + 12);
     window.setOpacity(targetOpacity * .82);
     window.show();
@@ -116,12 +279,17 @@ function createWindow() {
       window.setPosition(bounds.x, Math.round(bounds.y + 12 * (1 - eased)));
       window.setOpacity(targetOpacity * (.82 + .18 * eased));
       if (t < 1) setTimeout(animate, 16);
+      else {movingByApp = false; rememberBounds();}
     };
     animate();
   });
   window.loadFile(path.join(root, 'static', 'index.html'));
   window.webContents.on('will-navigate', event => event.preventDefault());
   window.webContents.setWindowOpenHandler(() => ({action: 'deny'}));
+  const scheduleBoundsSave = () => {clearTimeout(boundsTimer); boundsTimer = setTimeout(rememberBounds, 350);};
+  window.on('move', scheduleBoundsSave);
+  window.on('resize', scheduleBoundsSave);
+  window.on('closed', () => {if (edgeWindow && !edgeWindow.isDestroyed()) edgeWindow.close(); app.quit();});
 }
 
 if (!app.requestSingleInstanceLock()) app.quit();
@@ -131,6 +299,7 @@ else {
     if (process.platform === 'win32') app.setAppUserModelId('com.todotodo.desktop');
     dbPath = path.join(app.getPath('userData'), 'todotodo.db');
     settingsPath = path.join(app.getPath('userData'), 'settings.json');
+    secretsPath = path.join(app.getPath('userData'), 'ai-keys.json');
     loadSettings();
     session.defaultSession.setPermissionRequestHandler((_contents, _permission, callback) => callback(false));
     await startServer();
@@ -138,8 +307,29 @@ else {
       if (!window || event.sender !== window.webContents || !event.senderFrame.url.startsWith('file:')) throw new Error('허용되지 않은 요청입니다.');
     };
     ipcMain.handle('todo:api', (event, endpoint, method, body) => {verifySender(event); return requestAPI(endpoint, method, body);});
-    ipcMain.handle('todo:state', event => {verifySender(event); return {...settings, dbPath, root};});
+    ipcMain.handle('todo:state', event => {
+      verifySender(event);
+      const mcpConfig = app.isPackaged
+        ? {command: agentExecutable(), args: [], env: {TODOTODO_DB: dbPath}}
+        : {command: 'uv', args: ['run', '--with', 'mcp>=2,<3', 'python', 'mcp_server.py'], cwd: root, env: {TODOTODO_DB: dbPath}};
+      return {...settings, dbPath, mcpConfig, claudeBundleAvailable: app.isPackaged};
+    });
     ipcMain.handle('todo:setting', (event, key, value) => {verifySender(event); return setSetting(key, value);});
+    ipcMain.handle('todo:ai-status', event => {verifySender(event); const keys = readSecrets(); return {openai: Boolean(keys.openai), anthropic: Boolean(keys.anthropic)};});
+    ipcMain.handle('todo:ai-key', (event, provider, key) => {verifySender(event); return saveProviderKey(provider, key);});
+    ipcMain.handle('todo:ai-brief', (event, provider, scope) => {verifySender(event); return makeAIBrief(provider, scope);});
+    ipcMain.handle('todo:claude-bundle', event => {
+      verifySender(event);
+      if (!app.isPackaged) return false;
+      const bundle = path.join(process.resourcesPath, 'backend', 'todotodo-claude-win.mcpb');
+      if (!fs.existsSync(bundle)) return false;
+      shell.showItemInFolder(bundle);
+      return true;
+    });
+    ipcMain.handle('todo:compact', (event, value) => {verifySender(event); return setCompact(value);});
+    ipcMain.handle('todo:fold', event => {verifySender(event); foldToEdge(); return true;});
+    ipcMain.handle('edge:restore', event => {if (!edgeWindow || event.sender !== edgeWindow.webContents) throw new Error('허용되지 않은 요청입니다.'); restoreFromEdge();});
+    ipcMain.handle('edge:side', event => {if (!edgeWindow || event.sender !== edgeWindow.webContents) throw new Error('허용되지 않은 요청입니다.'); return settings.edgeSide;});
     ipcMain.handle('todo:export', async event => {
       verifySender(event);
       const result = await dialog.showSaveDialog(window, {title: 'TodoTodo 백업', defaultPath: `todotodo-backup-${new Date().toISOString().slice(0, 10)}.json`, filters: [{name: 'JSON', extensions: ['json']}]});
@@ -149,6 +339,8 @@ else {
       return true;
     });
     createWindow();
+    screen.on('display-metrics-changed', keepWindowVisible);
+    screen.on('display-removed', keepWindowVisible);
     timer = setInterval(checkReminders, 15000);
     checkReminders();
   }).catch(error => {
@@ -158,5 +350,5 @@ else {
     app.quit();
   });
   app.on('window-all-closed', () => app.quit());
-  app.on('before-quit', () => {if (timer) clearInterval(timer); if (server && !server.killed) server.kill();});
+  app.on('before-quit', () => {if (timer) clearInterval(timer); if (boundsTimer) clearTimeout(boundsTimer); if (server && !server.killed) server.kill();});
 }

@@ -2,13 +2,47 @@
   "name": "todotodo-desktop",
   "version": "0.1.0",
   "private": true,
+  "author": "Sukojin",
   "description": "Desktop tasks, schedule and ideas with MCP integration",
   "main": "electron/main.js",
   "scripts": {
     "start": "electron .",
-    "check": "node --check electron/main.js && node --check electron/preload.js && node --check static/app.js && uv run python -m unittest discover -s tests -v"
+    "check": "node --check electron/main.js && node --check electron/preload.js && node --check electron/edge-preload.js && node --check electron/ai.js && node --check static/app.js && node --check static/edge.js && node --test tests/ai.test.js && uv run python -m unittest discover -s tests -v",
+    "build:win": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-windows.ps1"
   },
   "devDependencies": {
-    "electron": "^44.4.5"
+    "@anthropic-ai/mcpb": "^2.1.2",
+    "electron": "^44.4.5",
+    "electron-builder": "^26.15.3"
+  },
+  "build": {
+    "appId": "com.todotodo.desktop",
+    "productName": "TodoTodo",
+    "asar": true,
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "electron/**/*",
+      "static/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "build/backend",
+        "to": "backend",
+        "filter": [
+          "*.exe",
+          "*.mcpb"
+        ]
+      }
+    ],
+    "win": {
+      "icon": "electron/icon.ico",
+      "artifactName": "TodoTodo-${version}-portable.${ext}",
+      "target": [
+        "portable"
+      ]
+    }
   }
 }

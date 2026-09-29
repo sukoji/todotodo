@@ -1,0 +1,23 @@
+{
+  "manifest_version": "0.3",
+  "name": "todotodo",
+  "display_name": "TodoTodo",
+  "version": "0.1.0",
+  "description": "Use your local TodoTodo tasks, schedule, and ideas in Claude Desktop.",
+  "author": {"name": "Sukojin", "url": "https://github.com/sukoji/todotodo"},
+  "homepage": "https://github.com/sukoji/todotodo",
+  "server": {
+    "type": "binary",
+    "entry_point": "server/todotodo-mcp.exe",
+    "mcp_config": {"command": "${__dirname}/server/todotodo-mcp.exe", "args": [], "env": {}}
+  },
+  "compatibility": {"platforms": ["win32"]},
+  "tools": [
+    {"name": "list_entries", "description": "Find TodoTodo entries"},
+    {"name": "get_entry", "description": "Read a TodoTodo entry"},
+    {"name": "capture_entry", "description": "Capture a task, idea, or event"},
+    {"name": "revise_entry", "description": "Update a TodoTodo entry"},
+    {"name": "mark_done", "description": "Complete a TodoTodo entry"},
+    {"name": "get_daily_brief", "description": "Read today's plan"}
+  ]
+}

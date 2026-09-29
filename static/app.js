@@ -1,5 +1,6 @@
 const $ = selector => document.querySelector(selector);
 const state = {items: [], view: 'home', scope: 'all', taskFilter: 'open', search: '', editing: null, month: new Date(), selectedDay: localDate(new Date())};
+let desktopCompact = false;
 const kindName = {task: '할 일', event: '일정', idea: '아이디어'};
 const scopeName = {work: '업무', personal: '개인'};
 
@@ -53,7 +54,17 @@ function render() {
   $('#today-list').innerHTML = todayList.length ? todayList.map(item => row(item, false)).join('') : empty('오늘 예정된 항목이 없어요.<br>새로운 하루를 계획해 보세요.');
   const upcoming = openItems(items.filter(item => item.date > today)).sort((a,b) => (a.date+a.time).localeCompare(b.date+b.time)).slice(0, 3);
   $('#upcoming-list').innerHTML = upcoming.length ? upcoming.map(item => row(item)).join('') : empty('다가오는 일정이 없어요.');
-  renderTasks(items); renderIdeas(items); renderCalendar(items);
+  renderTasks(items); renderIdeas(items); renderCalendar(items); renderCompact(items);
+}
+function renderCompact(items) {
+  const today = localDate(new Date());
+  const active = openItems(items.filter(item => item.kind === 'task' || item.kind === 'event'));
+  const candidates = active.filter(item => !item.date || item.date <= today).sort((a,b) => {
+    const rank = item => item.date && item.date < today ? 0 : item.date === today ? 1 : 2;
+    return rank(a) - rank(b) || (a.time || '99:99').localeCompare(b.time || '99:99');
+  });
+  $('#compact-count').textContent = `${candidates.length}개 남음`;
+  $('#compact-list').innerHTML = candidates.length ? candidates.slice(0,3).map(item => `<div class="compact-row"><button class="check-button" data-complete="${item.id}" aria-label="완료"></button><button class="compact-title" data-compact-edit="${item.id}">${escapeHTML(item.title)}</button>${item.time ? `<small>${escapeHTML(item.time)}</small>` : ''}</div>`).join('') : '<div class="compact-empty">오늘은 여유로운 페이지예요 ☀</div>';
 }
 function renderTasks(items) {
   let results = items.filter(item => item.kind === 'task');
@@ -106,10 +117,14 @@ document.addEventListener('click', async event => {
   const scope = event.target.closest('[data-scope]'); if (scope) {state.scope = scope.dataset.scope; document.querySelectorAll('[data-scope]').forEach(el => el.classList.toggle('selected',el === scope)); return render();}
   const filter = event.target.closest('[data-filter]'); if (filter) {state.taskFilter = filter.dataset.filter; state.search = ''; document.querySelectorAll('[data-filter]').forEach(el => el.classList.toggle('selected',el === filter)); return render();}
   const day = event.target.closest('[data-day]'); if (day) {state.selectedDay = day.dataset.day; return render();}
+  const compactEdit = event.target.closest('[data-compact-edit]'); if (compactEdit) {
+    const item = state.items.find(entry => entry.id === compactEdit.dataset.compactEdit);
+    await toggleCompact(false); setTimeout(() => openEditor(item.kind,item), 300); return;
+  }
   const edit = event.target.closest('[data-edit]'); if (edit) return openEditor('task',state.items.find(item => item.id === edit.dataset.edit));
   const complete = event.target.closest('[data-complete]'); if (complete) {
     const item = state.items.find(entry => entry.id === complete.dataset.complete);
-    const rowElement = complete.closest('.item-row');
+    const rowElement = complete.closest('.item-row, .compact-row');
     if (item.status !== 'done' && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
       complete.classList.add('done'); complete.textContent = '✓';
       rowElement.classList.add('completing');
@@ -135,8 +150,22 @@ $('#delete-button').onclick = async () => {
 $('#prev-month').onclick = () => {state.month = new Date(state.month.getFullYear(),state.month.getMonth()-1,1); render();};
 $('#next-month').onclick = () => {state.month = new Date(state.month.getFullYear(),state.month.getMonth()+1,1); render();};
 $('#go-today').onclick = () => {state.month = new Date(); state.selectedDay = localDate(new Date()); render();};
+async function toggleCompact(value = !desktopCompact) {
+  if (!window.todoDesktop) return;
+  try {await window.todoDesktop.compact(value);} catch(error) {toast(error.message);}
+}
+$('#compact-button').onclick = () => toggleCompact(true);
+$('#expand-button').onclick = () => toggleCompact(false);
+$('#fold-button').onclick = $('#compact-fold').onclick = async () => {try {await window.todoDesktop.fold();} catch(error) {toast(error.message);}};
+$('#compact-form').onsubmit = async event => {
+  event.preventDefault();
+  const input = $('#compact-input'), title = input.value.trim();
+  if (!title) return;
+  try {await api('/api/items',{method:'POST',body:JSON.stringify({title,kind:'task',scope:state.scope === 'all' ? 'personal' : state.scope,date:localDate(new Date())})}); input.value = ''; await refresh(); toast('오늘 페이지에 적었어요.');}
+  catch(error) {toast(error.message);}
+};
 $('#search-button').onclick = () => {const query = prompt('제목, 메모, 태그에서 검색',state.search); if (query === null) return; state.search = query.trim(); setView('tasks'); render();};
-$('#copy-command').onclick = async () => {try {await navigator.clipboard.writeText($('#mcp-command').textContent); toast('명령을 복사했습니다.');} catch {toast('복사할 수 없습니다. 명령을 직접 선택해 주세요.');}};
+$('#copy-command').onclick = async () => {try {await navigator.clipboard.writeText($('#mcp-command').textContent); toast('설정을 복사했습니다.');} catch {toast('복사할 수 없습니다. 내용을 직접 선택해 주세요.');}};
 $('#export-button').onclick = async () => {
   try {if (window.todoDesktop) {if (await window.todoDesktop.export()) toast('백업을 저장했습니다.'); return;} const data = await api('/api/export'); const url = URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'})); const link = document.createElement('a'); link.href = url; link.download = `todotodo-backup-${localDate(new Date())}.json`; link.click(); setTimeout(() => URL.revokeObjectURL(url),1000);}
   catch(error) {toast(error.message);}
@@ -145,29 +174,75 @@ async function initializeDesktop() {
   if (!window.todoDesktop) return;
   document.body.classList.add('desktop-app');
   const preferences = await window.todoDesktop.state();
-  const config = {mcpServers:{todotodo:{command:'uv',args:['run','--with','mcp>=2,<3','python','mcp_server.py'],cwd:preferences.root,env:{TODOTODO_DB:preferences.dbPath}}}};
-  $('#mcp-command').textContent = JSON.stringify(config,null,2);
+  const config = {mcpServers:{todotodo:preferences.mcpConfig}};
+  const toml = `[mcp_servers.todotodo]\ncommand = ${JSON.stringify(preferences.mcpConfig.command)}\nargs = ${JSON.stringify(preferences.mcpConfig.args)}\n[mcp_servers.todotodo.env]\nTODOTODO_DB = ${JSON.stringify(preferences.dbPath)}`;
+  $('#mcp-command').insertAdjacentHTML('beforebegin', '<div class="connection-tabs"><button class="selected" id="claude-config-tab">Claude Desktop</button><button id="codex-config-tab">Codex</button></div>');
+  const showConfig = mode => {
+    $('#mcp-command').textContent = mode === 'codex' ? toml : JSON.stringify(config,null,2);
+    $('#claude-config-tab').classList.toggle('selected',mode === 'claude');
+    $('#codex-config-tab').classList.toggle('selected',mode === 'codex');
+  };
+  $('#claude-config-tab').onclick = () => showConfig('claude');
+  $('#codex-config-tab').onclick = () => showConfig('codex');
+  showConfig('claude');
+  if (preferences.claudeBundleAvailable) {
+    $('#copy-command').insertAdjacentHTML('afterend','<button class="subtle-button bundle-button" id="claude-bundle-button">Claude 확장 파일 찾기 ↗</button>');
+    $('#claude-bundle-button').onclick = async () => {if (await window.todoDesktop.claudeBundle()) toast('파일을 찾았습니다. Claude Desktop에서 확장을 설치하세요.'); else toast('확장 파일을 찾을 수 없습니다.');};
+  }
   $('#always-on-top').checked = preferences.alwaysOnTop;
   $('#opacity-slider').value = preferences.opacity;
   $('#opacity-value').textContent = `${preferences.opacity}%`;
   $('#notifications-enabled').checked = preferences.notifications;
   $('#reminder-minutes').value = String(preferences.reminderMinutes);
+  $('#desktop-settings').insertAdjacentHTML('beforeend', '<label class="setting-row"><span><strong>가장자리 탭 위치</strong><small>접어둘 모니터의 왼쪽 또는 오른쪽</small></span><select id="edge-side"><option value="right">오른쪽</option><option value="left">왼쪽</option></select></label>');
+  $('#edge-side').value = preferences.edgeSide;
   $('#pin-button').classList.toggle('active',preferences.alwaysOnTop);
+  $('#compact-pin').classList.toggle('active',preferences.alwaysOnTop);
+  desktopCompact = preferences.compact;
+  document.body.classList.toggle('compact-app', desktopCompact);
+  window.todoDesktop.onCompactChanged(value => {desktopCompact = value; document.body.classList.toggle('compact-app', value); refresh();});
   const save = async (key,value) => {
     try {
       const updated = await window.todoDesktop.setting(key,value);
       $('#pin-button').classList.toggle('active',updated.alwaysOnTop);
+      $('#compact-pin').classList.toggle('active',updated.alwaysOnTop);
       $('#always-on-top').checked = updated.alwaysOnTop;
       $('#opacity-value').textContent = `${updated.opacity}%`;
       toast('설정을 저장했습니다.');
     } catch(error) {toast(error.message);}
   };
   $('#pin-button').onclick = () => save('alwaysOnTop',!$('#always-on-top').checked);
+  $('#compact-pin').onclick = () => save('alwaysOnTop',!$('#always-on-top').checked);
   $('#always-on-top').onchange = event => save('alwaysOnTop',event.target.checked);
   $('#opacity-slider').oninput = event => {$('#opacity-value').textContent = `${event.target.value}%`;};
   $('#opacity-slider').onchange = event => save('opacity',Number(event.target.value));
   $('#notifications-enabled').onchange = event => save('notifications',event.target.checked);
   $('#reminder-minutes').onchange = event => save('reminderMinutes',Number(event.target.value));
+  $('#edge-side').onchange = event => save('edgeSide',event.target.value);
+  $('#desktop-settings').insertAdjacentHTML('afterend', `<div class="panel connect-panel" id="ai-settings"><div class="connect-symbol">✎</div><h2>선택해서 쓰는 AI</h2><p>연결하지 않아도 TodoTodo의 모든 기본 기능을 쓸 수 있어요. 키를 등록하면 오늘 일정의 제목과 시간만 직접 요청할 때 전송합니다.</p><label class="field">제공자<select id="ai-provider"><option value="openai">OpenAI API · GPT</option><option value="anthropic">Claude API</option></select></label><label class="field">개인 API 키<input id="ai-key-input" type="password" autocomplete="off" placeholder="API 키를 입력하세요"></label><div class="ai-key-actions"><button class="subtle-button" id="save-ai-key">안전하게 저장</button><button class="subtle-button" id="remove-ai-key">연결 해제</button><span id="ai-key-status"></span></div><p class="connect-note">키는 운영체제 보안 저장소로 암호화됩니다. ChatGPT·Claude 구독과 API 사용료는 별개예요. 기존 계정으로 쓰려면 위 MCP 설정을 Codex 또는 Claude Desktop에 등록하세요.</p></div>`);
+  $('#home-view .page-heading p').insertAdjacentHTML('afterend','<button class="ai-brief-button" id="ai-brief-button">✳ AI에게 오늘의 순서 묻기</button>');
+  $('#ai-provider').value = localStorage.getItem('todo-provider') || 'openai';
+  let keyStatus = await window.todoDesktop.aiStatus();
+  const updateKeyStatus = () => {const connected = keyStatus[$('#ai-provider').value]; $('#ai-key-status').textContent = connected ? '● 연결됨' : '○ 연결 안 됨'; $('#ai-key-status').classList.toggle('connected',connected);};
+  $('#ai-provider').onchange = () => {localStorage.setItem('todo-provider',$('#ai-provider').value); updateKeyStatus();};
+  $('#save-ai-key').onclick = async () => {try {const key = $('#ai-key-input').value.trim(); if (!key) return toast('API 키를 입력하세요.'); keyStatus = await window.todoDesktop.aiKey($('#ai-provider').value,key); $('#ai-key-input').value = ''; updateKeyStatus(); toast('이 기기에 키를 저장했습니다.');} catch(error) {toast(error.message);}};
+  $('#remove-ai-key').onclick = async () => {try {keyStatus = await window.todoDesktop.aiKey($('#ai-provider').value,''); updateKeyStatus(); toast('연결을 해제했습니다.');} catch(error) {toast(error.message);}};
+  $('#ai-brief-button').onclick = async () => {
+    const provider = $('#ai-provider').value;
+    if (!keyStatus[provider]) {setView('connect'); toast('먼저 개인 API 키를 연결하세요.'); return;}
+    const button = $('#ai-brief-button'); button.disabled = true; button.textContent = '정리하는 중…';
+    try {$('#ai-result-text').textContent = await window.todoDesktop.aiBrief(provider,state.scope); $('#ai-result').showModal();}
+    catch(error) {toast(error.message);}
+    finally {button.disabled = false; button.textContent = '✳ AI에게 오늘의 순서 묻기';}
+  };
+  updateKeyStatus();
 }
+$('#close-ai-result').onclick = $('#done-ai-result').onclick = () => $('#ai-result').close();
+$('#copy-ai-result').onclick = async () => {try {await navigator.clipboard.writeText($('#ai-result-text').textContent); toast('내용을 복사했습니다.');} catch {toast('복사할 수 없습니다.');}};
 document.addEventListener('keydown', event => {if (event.key === 'Enter' && event.target.matches('.idea-card')) openEditor('idea',state.items.find(item => item.id === event.target.dataset.edit));});
+document.addEventListener('keydown', event => {
+  if (window.todoDesktop && event.ctrlKey && event.shiftKey && event.key.toLowerCase() === 'm') {event.preventDefault(); toggleCompact();}
+  if (!desktopCompact && event.ctrlKey && event.key.toLowerCase() === 'n') {event.preventDefault(); openEditor();}
+});
 initializeDesktop().then(refresh).catch(error => toast(error.message));
+setInterval(() => {if (!document.hidden) refresh();}, 20000);

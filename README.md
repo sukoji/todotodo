@@ -1,89 +1,67 @@
+<p align="center"><img src="static/logo.svg" width="76" alt="TodoTodo 로고"></p>
+
 # TodoTodo
 
-![TodoTodo 로고](static/logo.svg)
+**할 일은 체크하고, 떠오른 생각은 붙여두고. 화면이 복잡해지면 접어두세요.**
 
-![TodoTodo 데스크톱 화면](docs/screenshot.png)
+TodoTodo는 책상 한쪽에 놓아두는 작은 수첩 같은 Windows 앱입니다. 일정·할 일·아이디어를 한곳에서 다루고, 필요할 때만 Codex나 Claude Desktop에 연결합니다. 가입, 동기화 서버, AI 연결 없이 바로 쓸 수 있습니다.
 
-일정, 할 일, 아이디어를 한곳에 기록하고 기존 AI 에이전트와 함께 쓰는 로컬 우선 데스크톱 앱입니다. Electron 화면과 MCP 서버가 같은 SQLite 데이터베이스를 사용하므로, 사람이 화면에서 적은 내용을 에이전트가 읽고 에이전트가 남긴 내용을 화면에서 바로 볼 수 있습니다.
+[**Windows용 다운로드**](https://github.com/sukoji/todotodo/releases/latest) · [화면 미리 보기](docs/screenshot.png)
 
-## 시작하기
+![TodoTodo 화면](docs/screenshot.png)
 
-Node.js/npm과 Python 3.10 이상이 필요합니다. Electron 데스크톱 앱을 실행하려면:
+## 하루에 맞춰 크기를 바꿔요
+
+| 보기 | 쓰임 |
+| --- | --- |
+| 전체 창 | 할 일, 달력, 아이디어를 정리할 때 |
+| 작은 메모 | 오늘 할 일 3개를 보며 바로 적거나 체크할 때 |
+| 가장자리 탭 | 화면을 비워두고 로고만 왼쪽·오른쪽에 남길 때 |
+
+![작은 메모 모드](docs/compact.png)
+
+창 고정과 투명도(45–100%)를 조절할 수 있습니다. 시간이 있는 일정은 정각 또는 5·10·30분 전에 알림을 보냅니다. 모니터를 옮기거나 해상도가 바뀌면 창을 화면 안으로 맞춥니다. `Ctrl+Shift+M`으로 전체 창과 작은 메모를 전환할 수 있습니다.
+
+## AI는 선택 사항이에요
+
+TodoTodo의 기록과 알림은 AI 없이 로컬에서 동작합니다. 연결이 필요할 때는 **연결 및 설정**에서 방법을 고르세요.
+
+| 연결 | 필요한 것 | 하는 일 |
+| --- | --- | --- |
+| Claude Desktop | 개인 Claude 로그인 + [TodoTodo 확장 파일](https://github.com/sukoji/todotodo/releases/latest) | Claude가 내 로컬 일정과 아이디어를 MCP로 읽고 기록 |
+| Codex | 개인 ChatGPT 로그인 + 앱에 표시된 Codex 설정 | GPT 기반 Codex가 같은 로컬 MCP 도구 사용 |
+| 앱 안의 AI 브리핑 | 개인 OpenAI 또는 Claude **API 키** | 오늘 일정 제목과 시간만 보내 실행 순서 제안 |
+
+Claude Desktop에서는 **Settings → Extensions → Advanced settings → Install Extension…**에서 `todotodo-claude-win.mcpb`를 선택하세요. Codex에서는 앱의 **연결 및 설정 → Codex**에 표시되는 내용을 `~/.codex/config.toml`에 추가하세요. 두 경우 모두 앱이 실행 중일 필요는 없지만, 같은 컴퓨터의 TodoTodo 데이터 파일을 사용합니다.
+
+앱 안의 AI 브리핑은 사용자가 버튼을 누를 때만 호출됩니다. API 키는 운영체제 보안 저장소로 암호화하며, 내용 전체나 메모 본문을 자동 전송하지 않습니다. **ChatGPT·Claude 구독은 각 서비스의 API 사용료를 포함하지 않습니다.** ChatGPT 웹사이트에 로컬 앱을 직접 연결하려면 별도의 공개 MCP 연결 또는 터널이 필요합니다. TodoTodo는 이를 대신하는 서버를 운영하지 않습니다.
+
+## 다운로드 후 시작
+
+1. [최신 릴리스](https://github.com/sukoji/todotodo/releases/latest)에서 `TodoTodo-*-portable.exe`를 내려받습니다.
+2. 실행하면 바로 사용할 수 있습니다. 설치나 관리자 권한, Python·Node.js가 필요하지 않습니다.
+3. 연결 없이 쓰다가 필요할 때만 Claude 확장이나 Codex 설정을 추가하세요.
+
+Windows 배포 파일은 현재 코드 서명이 없습니다. 조직 PC에서는 실행 정책에 따라 차단될 수 있습니다. 배포 파일과 소스는 이 저장소의 릴리스에서 함께 확인할 수 있습니다.
+
+데이터는 `%APPDATA%\TodoTodo\todotodo.db`에 저장됩니다. **연결 및 설정 → JSON 백업 다운로드**로 내보낼 수 있습니다. 계정 동기화, 앱 종료 후 알림, 반복 일정은 아직 없습니다.
+
+## 개발자를 위한 실행 방법
+
+Node.js/npm, Python 3.10+, `uv`가 필요합니다.
 
 ```bash
 npm install
 npm start
 ```
 
-데스크톱 데이터는 운영체제의 TodoTodo 사용자 데이터 폴더에 저장됩니다. 앱의 **연결 및 설정** 화면에서 실제 DB 경로가 포함된 MCP 설정을 복사할 수 있습니다. 창 고정, 45~100% 투명도, 일정 시작 전 알림(정각/5/10/30분 전)을 지원합니다. 알림은 앱이 실행 중이고 운영체제 알림이 허용된 경우에 표시됩니다. 창 등장, 화면 전환, 완료 체크에는 짧은 모션을 적용했으며 운영체제의 동작 줄이기 설정을 따릅니다.
+웹 화면만 실행하려면 `python app.py` 후 <http://127.0.0.1:8765>를 여세요. 소스 실행 시 기본 데이터 파일은 프로젝트 폴더의 `todotodo.db`입니다. `TODOTODO_DB`로 경로를 바꿀 수 있습니다.
 
-웹 버전으로도 실행할 수 있습니다. 이때 데이터는 프로젝트 폴더의 `todotodo.db`에 저장됩니다.
-
-```bash
-python app.py
-```
-
-브라우저에서 <http://127.0.0.1:8765>를 엽니다. 별도 데이터 위치를 쓰려면 `TODOTODO_DB` 환경 변수를 설정하세요. DB 파일은 Git에 포함되지 않습니다.
-
-## 에이전트 연결
-
-TodoTodo는 [MCP Python SDK](https://github.com/modelcontextprotocol/python-sdk)의 stdio 서버를 제공합니다. MCP를 지원하는 클라이언트의 서버 설정에 다음처럼 등록하세요. `D:/Projects/todotodo`를 실제 프로젝트 절대 경로로 바꾸면 됩니다. `uv`가 없다면 `pip install "mcp>=2,<3"` 후 `python mcp_server.py`를 실행해도 됩니다.
-
-```json
-{
-  "mcpServers": {
-    "todotodo": {
-      "command": "uv",
-      "args": ["run", "--with", "mcp>=2,<3", "python", "mcp_server.py"],
-      "cwd": "D:/Projects/todotodo"
-    }
-  }
-}
-```
-
-데스크톱 앱의 데이터와 연결할 때는 위 설정에 `"env": {"TODOTODO_DB": "앱에 표시된 DB 경로"}`를 추가해야 합니다. **연결 및 설정** 화면에는 이 값이 포함된 설정 전체가 표시됩니다. 클라이언트마다 MCP 설정 파일의 위치와 최상위 키가 다를 수 있습니다. 외부 서비스 연결이나 API 키는 필요하지 않습니다.
-
-| MCP 도구 | 용도 |
-| --- | --- |
-| `list_entries` | 종류, 업무/개인, 상태, 검색어로 목록 조회 |
-| `get_entry` | ID로 항목 조회 |
-| `capture_entry` | 할 일, 일정, 아이디어 기록 |
-| `revise_entry` | 제목, 메모, 날짜, 시간, 우선순위, 태그, 상태 수정 |
-| `mark_done` | 항목 완료 처리 |
-| `get_daily_brief` | 오늘 일정, 미완료 기한 지난 일, 열린 아이디어 조회 |
-
-예를 들어 에이전트에게 “다음 주 화요일 오후 2시에 업무 일정으로 고객 미팅 추가해줘”, “오늘 할 일과 밀린 일을 요약해줘”, “떠오른 아이디어를 개인 보관함에 적어줘”라고 요청할 수 있습니다. 날짜와 시간은 로컬 시간 기준입니다.
-
-## 로컬 API
-
-브라우저 외의 로컬 자동화에도 같은 데이터에 접근할 수 있습니다.
-
-- `GET /api/items` — 전체 목록. `kind`, `scope`, `status`, `query`, `start`, `end` 필터 지원
-- `POST /api/items` — 항목 추가
-- `PATCH /api/items/{id}` — 항목 수정
-- `DELETE /api/items/{id}` — 항목 삭제
-- `GET /api/brief?day=YYYY-MM-DD` — 하루 브리핑
-- `GET /api/export` — JSON 백업
-
-예시:
+MCP 서버만 실행하려면 `uv run python mcp_server.py`를 stdio 서버로 등록하세요. 도구는 `list_entries`, `get_entry`, `capture_entry`, `revise_entry`, `mark_done`, `get_daily_brief`입니다. 웹 API는 `GET/POST /api/items`, `PATCH/DELETE /api/items/{id}`, `GET /api/brief`, `GET /api/export`를 제공합니다.
 
 ```bash
-curl -X POST http://127.0.0.1:8765/api/items \
-  -H 'Content-Type: application/json' \
-  -d '{"title":"회의 준비","kind":"task","scope":"work","date":"2026-10-01"}'
-```
-
-서버는 `127.0.0.1`에만 바인딩됩니다. Electron이 시작하는 내부 서버는 무작위 포트와 세션 토큰으로 보호됩니다. 다른 기기에서 접근하도록 공개할 계획이라면 별도 인증 및 HTTPS가 필요합니다.
-
-## 백업과 실행 확인
-
-화면의 **연결 및 설정 → JSON 백업 다운로드**에서 내보낼 수 있습니다. 자동 백업은 제공하지 않으므로 데이터 파일도 주기적으로 복사해 두세요.
-
-```bash
-python -m unittest discover -s tests -v
 npm run check
+npm run build:win
 ```
 
-## 설계 범위
-
-개인과 업무 공간 구분, 할 일 상태, 일정 날짜·시간, 아이디어 메모, 간단한 검색과 태그, 로컬 JSON 백업, MCP 연동을 제공합니다. 계정 동기화, 반복 일정, 앱 종료 후 알림, 설치 파일은 아직 구현되지 않았습니다.
+Windows 배포 빌드는 PyInstaller로 데이터 서버·MCP 서버를 묶고, Electron portable 실행 파일과 Claude 확장 파일을 생성합니다. 결과는 `release/`에 저장됩니다.
