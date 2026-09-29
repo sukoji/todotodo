@@ -11,20 +11,18 @@
   background: var(--cream);
 }
 body { color: var(--ink); background: var(--cream); }
-.desktop-chrome { display: none; }
-.desktop-app .desktop-chrome { display: flex; align-items: center; gap: 6px; position: fixed; inset: 0 0 auto; z-index: 100; height: 32px; padding-left: 13px; border-bottom: 1px solid #e7ddcb; background: #f8f2e6; color: #667782; user-select: none; app-region: drag; -webkit-app-region: drag; }
-.chrome-grip { color: #e79d77; font-size: 14px; line-height: 1; }
-.chrome-name { font-size: 10px; font-weight: 800; letter-spacing: -.3px; }
-.chrome-fill { flex: 1; }
-.chrome-button { width: 28px; height: 24px; margin-right: 4px; border: 1px solid #e8dcc7; border-radius: 7px; background: #fffaf0; color: var(--ink); font-size: 16px; line-height: 1; transition: transform .18s, background .18s; app-region: no-drag; -webkit-app-region: no-drag; }
+.window-actions { display: none; }
+.desktop-app .topbar,.desktop-app .brand { user-select: none; app-region: drag; -webkit-app-region: drag; }
+.desktop-app .top-actions { app-region: no-drag; -webkit-app-region: no-drag; }
+.desktop-app .topbar { padding-right: 12px; }
+.desktop-app .top-actions { gap: 9px; }
+.desktop-app .window-actions { display: flex; align-items: center; gap: 4px; margin-left: 3px; }
+.chrome-button { width: 28px; height: 24px; border: 1px solid #e8dcc7; border-radius: 7px; background: #fffaf0; color: var(--ink); font-size: 16px; line-height: 1; transition: transform .18s, background .18s; app-region: no-drag; -webkit-app-region: no-drag; }
 .chrome-button:hover { background: #e6efea; transform: translateY(-1px); }
 .chrome-button:active { transform: scale(.91); }
 .chrome-close { background: #fff1e9; }
 .chrome-close:hover { background: #ef967a; }
-.desktop-app .app-shell { padding-top: 32px; }
-.desktop-app .sidebar { height: calc(100vh - 32px); top: 32px; }
-.desktop-app.compact-app .desktop-chrome { display: none; }
-.desktop-app.compact-app .app-shell { padding-top: 0; }
+.desktop-app .sidebar { height: 100vh; top: 0; }
 .desktop-app .compact-header { user-select: none; app-region: drag; -webkit-app-region: drag; }
 .desktop-app .compact-controls button { app-region: no-drag; -webkit-app-region: no-drag; }
 .backup-actions { display: flex; flex-wrap: wrap; gap: 8px; }
@@ -47,6 +45,23 @@ body { color: var(--ink); background: var(--cream); }
 .search-result strong { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
 .search-result small { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 10px; }
 .search-empty { padding: 23px 12px 30px; color: var(--muted); font-size: 11px; text-align: center; }
+#editor { max-height: calc(100vh - 24px); overflow-y: auto; }
+#editor .dialog-footer { position: sticky; bottom: -25px; z-index: 1; margin: 20px -27px -25px; padding: 12px 27px 20px; border-top: 1px solid var(--line); background: #fffdf7; }
+.status-field { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; margin: 13px 0 2px; padding: 0; border: 0; }
+.status-field[hidden] { display: none; }
+.status-field legend { margin-bottom: 7px; color: #5e5e6d; font-size: 11px; font-weight: 700; }
+.status-field label { position: relative; }
+.status-field input { position: absolute; opacity: 0; }
+.status-field span { display: block; padding: 9px 3px; border: 1.5px solid var(--line); border-radius: 8px; background: #fffdf8; color: #74818a; font-size: 11px; text-align: center; cursor: pointer; transition: transform .2s, background .2s; }
+.status-field label:hover span { transform: translateY(-2px); }
+.status-field input:checked+span { border-color: #80b4a8; background: #e5f1e9; color: var(--ink); font-weight: 750; }
+.status-field input:focus-visible+span { outline: 3px solid #e9a78f; outline-offset: 2px; }
+#delete-dialog { width: min(410px, calc(100vw - 24px)); background: #fffdf7; border: 1.5px solid #dbc6b3; }
+.delete-mark { display: grid; place-items: center; width: 40px; height: 40px; border: 1.5px solid var(--ink); border-radius: 12px; background: #ffe4d3; color: #c47859; font-size: 22px; transform: rotate(-8deg); }
+#delete-dialog h2 { margin: 16px 0 7px; font-size: 18px; }
+#delete-item-title { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
+.delete-confirm-button { height: 32px; padding: 0 12px; border: 1px solid #cf7c65; border-radius: 7px; background: #ffe4d3; color: #8d4835; font-size: 10px; font-weight: 750; }
+.delete-confirm-button:hover { background: #ffd0bc; }
 button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible { outline-color: #e9a78f; }
 .sidebar { background: #f8f2e6; border-right: 1px solid var(--line); }
 .brand { gap: 7px; padding-bottom: 23px; }
@@ -86,6 +101,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .primary-button:active { transform: translateY(3px) scale(.97); box-shadow: 0 1px 0 var(--ink); }
 .summary-grid { gap: 17px; margin-bottom: 25px; }
 .summary-card { border: 1.5px solid var(--ink); border-radius: 15px; min-height: 140px; box-shadow: 4px 5px 0 #273b4720; transition: transform .35s cubic-bezier(.2,1.5,.4,1), box-shadow .3s; }
+.summary-grid button.summary-card { width: 100%; text-align: left; font: inherit; }
 .summary-card:hover { transform: translateY(-5px) rotate(-1deg); box-shadow: 5px 9px 0 #273b4720; }
 .summary-card.lilac { background: #dcece6; }
 .summary-card.peach { background: #ffe4d3; }
@@ -131,6 +147,8 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 #compact-form button { border: 1px solid var(--ink); background: var(--yellow); color: var(--ink); width: 26px; height: 26px; border-radius: 6px; font-size: 16px; font-weight: 700; transition: transform .22s cubic-bezier(.2,1.5,.4,1); }
 #compact-form button:hover { transform: scale(1.1) rotate(6deg); }
 .item-title { color: var(--ink); }
+.status-chip { display: inline-block; margin-left: 7px; padding: 1px 5px; border: 1px solid #9ccbbe; border-radius: 5px; background: #e5f1e9; color: #47776c; font-size: 9px; font-weight: 750; vertical-align: 1px; }
+#tasks-list:has(.item-row) { min-height: 0; }
 .check-button { border-color: #9cabb0; border-radius: 6px; transition: background .18s, transform .35s cubic-bezier(.2,1.8,.4,1); }
 .check-button:hover { transform: scale(1.23) rotate(-8deg); }
 .check-button.done { background: #79b7a9; border-color: var(--ink); color: var(--ink); }

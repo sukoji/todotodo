@@ -36,7 +36,7 @@ function openItems(items) { return items.filter(item => item.status !== 'done');
 function row(item, showDate = true) {
   const complete = item.status === 'done';
   const meta = [scopeName[item.scope], kindName[item.kind], item.time || '', item.tags || ''].filter(Boolean);
-  return `<div class="item-row ${complete ? 'is-done' : ''}"><button class="check-button ${complete ? 'done' : ''}" data-complete="${item.id}" aria-label="${complete ? '완료 취소' : '완료'}">${complete ? '✓' : ''}</button><div class="item-body" data-edit="${item.id}"><div class="item-title">${escapeHTML(item.title)} ${item.priority === 'high' ? '<i class="priority-high" title="높은 우선순위"></i>' : ''}</div><div class="item-meta">${meta.map(text => `<span>${escapeHTML(text)}</span>`).join('<span>·</span>')}</div></div>${showDate && item.date ? `<span class="item-date">${formatDate(item.date)}</span>` : ''}</div>`;
+  return `<div class="item-row ${complete ? 'is-done' : ''}"><button class="check-button ${complete ? 'done' : ''}" data-complete="${item.id}" aria-label="${complete ? '완료 취소' : '완료'}">${complete ? '✓' : ''}</button><div class="item-body" data-edit="${item.id}"><div class="item-title">${escapeHTML(item.title)} ${item.priority === 'high' ? '<i class="priority-high" title="높은 우선순위"></i>' : ''}${item.kind === 'task' && item.status === 'doing' ? '<span class="status-chip">진행 중</span>' : ''}</div><div class="item-meta">${meta.map(text => `<span>${escapeHTML(text)}</span>`).join('<span>·</span>')}</div></div>${showDate && item.date ? `<span class="item-date">${formatDate(item.date)}</span>` : ''}</div>`;
 }
 function empty(message) { return `<div class="empty-state"><img class="empty-illustration" src="./empty.svg" alt="">${message}</div>`; }
 function render() {
@@ -47,7 +47,7 @@ function render() {
   $('#today-label').textContent = new Intl.DateTimeFormat('ko-KR', {year:'numeric',month:'long',day:'numeric',weekday:'long'}).format(new Date());
   $('#greeting').textContent = '오늘도 하나씩,';
   $('#stat-today').textContent = dueToday.length;
-  $('#stat-doing').textContent = items.filter(item => item.status === 'doing').length;
+  $('#stat-doing').textContent = items.filter(item => item.kind === 'task' && item.status === 'doing').length;
   $('#stat-ideas').textContent = openIdeas.length;
   $('#today-count').textContent = dueToday.length;
   const todayList = [...dueToday].sort((a,b) => (a.time || '99:99').localeCompare(b.time || '99:99'));
@@ -61,7 +61,7 @@ function renderCompact(items) {
   const active = openItems(items.filter(item => item.kind === 'task' || item.kind === 'event'));
   const candidates = active.filter(item => !item.date || item.date <= today).sort((a,b) => {
     const rank = item => item.date && item.date < today ? 0 : item.date === today ? 1 : 2;
-    return rank(a) - rank(b) || (a.time || '99:99').localeCompare(b.time || '99:99');
+    return rank(a) - rank(b) || Number(b.status === 'doing') - Number(a.status === 'doing') || (a.time || '99:99').localeCompare(b.time || '99:99');
   });
   $('#compact-count').textContent = `${candidates.length}개 남음`;
   $('#compact-list').innerHTML = candidates.length ? candidates.slice(0,3).map(item => `<div class="compact-row"><button class="check-button" data-complete="${item.id}" aria-label="완료"></button><button class="compact-title" data-compact-edit="${item.id}">${escapeHTML(item.title)}</button>${item.time ? `<small>${escapeHTML(item.time)}</small>` : ''}</div>`).join('') : '<div class="compact-empty">오늘은 여유로운 페이지예요 ☀</div>';
@@ -69,9 +69,11 @@ function renderCompact(items) {
 function renderTasks(items) {
   let results = items.filter(item => item.kind === 'task');
   if (state.taskFilter === 'open') results = openItems(results);
+  else if (state.taskFilter === 'doing') results = results.filter(item => item.status === 'doing');
   else if (state.taskFilter === 'done') results = results.filter(item => item.status === 'done');
   $('#task-total').textContent = `${results.length}개 항목`;
-  $('#tasks-list').innerHTML = results.length ? results.map(item => row(item)).join('') : empty('아직 할 일이 없어요.<br>첫 번째 할 일을 추가해 보세요.');
+  const emptyText = state.taskFilter === 'doing' ? '지금 진행 중인 일이 없어요.<br>시작할 일을 골라보세요.' : state.taskFilter === 'done' ? '아직 완료한 일이 없어요.' : '아직 할 일이 없어요.<br>첫 번째 할 일을 추가해 보세요.';
+  $('#tasks-list').innerHTML = results.length ? results.map(item => row(item)).join('') : empty(emptyText);
 }
 function renderIdeas(items) {
   const ideas = items.filter(item => item.kind === 'idea').sort((a,b) => b.created_at.localeCompare(a.created_at));
@@ -118,11 +120,23 @@ function setView(view) {
   document.querySelectorAll('.nav-item').forEach(el => el.classList.toggle('active', el.dataset.view === view));
   $('#breadcrumb-current').textContent = {home:'오늘',tasks:'할 일',calendar:'캘린더',ideas:'아이디어 보관함',connect:'에이전트 연결'}[view];
 }
+function setTaskFilter(filter) {
+  state.taskFilter = filter;
+  document.querySelectorAll('[data-filter]').forEach(el => el.classList.toggle('selected',el.dataset.filter === filter));
+  render();
+}
+function syncStatusField() {
+  const task = $('#editor-form').elements.kind.value === 'task';
+  $('#task-status-field').hidden = !task;
+  document.querySelectorAll('#task-status-field input').forEach(input => {input.disabled = !task;});
+}
 function openEditor(kind = 'task', item = null) {
   state.editing = item;
   const form = $('#editor-form'); form.reset();
   form.elements.kind.value = item?.kind || kind;
+  form.elements.status.value = item?.status || 'todo';
   for (const key of ['title','details','date','time','scope','priority','tags']) if (item) form.elements[key].value = item[key] || '';
+  syncStatusField();
   if (!item && kind === 'event') form.elements.date.value = state.selectedDay;
   if (!item && state.scope !== 'all') form.elements.scope.value = state.scope;
   $('#dialog-title').textContent = item ? '항목 수정' : '새 항목 만들기';
@@ -131,10 +145,16 @@ function openEditor(kind = 'task', item = null) {
   form.elements.title.focus();
 }
 document.addEventListener('click', async event => {
+  const summary = event.target.closest('[data-summary]'); if (summary) {
+    if (summary.dataset.summary === 'today') $('#today-list').scrollIntoView({behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start'});
+    if (summary.dataset.summary === 'doing') {setView('tasks'); setTaskFilter('doing');}
+    if (summary.dataset.summary === 'ideas') setView('ideas');
+    return;
+  }
   const view = event.target.closest('[data-view]'); if (view) return setView(view.dataset.view);
   const create = event.target.closest('[data-new]'); if (create) return openEditor(create.dataset.new);
   const scope = event.target.closest('[data-scope]'); if (scope) {state.scope = scope.dataset.scope; document.querySelectorAll('[data-scope]').forEach(el => el.classList.toggle('selected',el === scope)); return render();}
-  const filter = event.target.closest('[data-filter]'); if (filter) {state.taskFilter = filter.dataset.filter; document.querySelectorAll('[data-filter]').forEach(el => el.classList.toggle('selected',el === filter)); return render();}
+  const filter = event.target.closest('[data-filter]'); if (filter) return setTaskFilter(filter.dataset.filter);
   const day = event.target.closest('[data-day]'); if (day) {state.selectedDay = day.dataset.day; return render();}
   const compactEdit = event.target.closest('[data-compact-edit]'); if (compactEdit) {
     const item = state.items.find(entry => entry.id === compactEdit.dataset.compactEdit);
@@ -156,15 +176,25 @@ $('#editor-form').addEventListener('submit', async event => {
   event.preventDefault();
   const form = event.currentTarget, data = Object.fromEntries(new FormData(form));
   try {
-    await api(state.editing ? `/api/items/${state.editing.id}` : '/api/items',{method:state.editing ? 'PATCH' : 'POST',body:JSON.stringify(data)});
-    $('#editor').close(); toast(state.editing ? '수정했습니다.' : '기록했습니다.'); await refresh();
+    const created = !state.editing;
+    const saved = await api(created ? '/api/items' : `/api/items/${state.editing.id}`,{method:created ? 'POST' : 'PATCH',body:JSON.stringify(data)});
+    $('#editor').close(); await refresh();
+    if (created && state.view === 'tasks' && saved.kind === 'task') {
+      const visible = state.taskFilter === 'all' || (state.taskFilter === 'open' && saved.status !== 'done') || state.taskFilter === saved.status;
+      if (!visible) setTaskFilter(saved.status === 'todo' ? 'open' : saved.status);
+    }
+    toast(created ? '기록했습니다.' : '수정했습니다.');
   } catch(error) {toast(error.message);}
 });
+document.querySelectorAll('#editor-form input[name="kind"]').forEach(input => {input.onchange = syncStatusField;});
 $('#close-dialog').onclick = $('#cancel-button').onclick = () => $('#editor').close();
-$('#delete-button').onclick = async () => {
-  if (!state.editing || !confirm('이 항목을 삭제할까요?')) return;
-  try {await api(`/api/items/${state.editing.id}`,{method:'DELETE'}); $('#editor').close(); toast('삭제했습니다.'); await refresh();}
+$('#delete-button').onclick = () => {if (!state.editing) return; $('#delete-item-title').textContent = state.editing.title; $('#delete-dialog').showModal();};
+$('#cancel-delete').onclick = () => $('#delete-dialog').close();
+$('#confirm-delete').onclick = async () => {
+  const button = $('#confirm-delete'); button.disabled = true;
+  try {await api(`/api/items/${state.editing.id}`,{method:'DELETE'}); $('#delete-dialog').close(); $('#editor').close(); toast('삭제했습니다.'); await refresh();}
   catch(error) {toast(error.message);}
+  finally {button.disabled = false;}
 };
 $('#prev-month').onclick = () => {state.month = new Date(state.month.getFullYear(),state.month.getMonth()-1,1); render();};
 $('#next-month').onclick = () => {state.month = new Date(state.month.getFullYear(),state.month.getMonth()+1,1); render();};
