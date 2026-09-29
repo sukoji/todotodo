@@ -1,5 +1,5 @@
 const $ = selector => document.querySelector(selector);
-const state = {items: [], view: 'home', scope: 'all', taskFilter: 'open', editing: null, month: new Date(), selectedDay: localDate(new Date())};
+const state = {items: [], view: 'home', scope: 'all', taskFilter: 'open', editing: null, month: new Date(), selectedDay: localDate(new Date()), preferredDay: new Date().getDate()};
 let desktopCompact = false;
 let renderedDate = '';
 const kindName = {task: '할 일', event: '일정', idea: '아이디어'};
@@ -114,6 +114,7 @@ function renderCalendar(items) {
   $('#calendar-month').textContent = `${year}년 ${month+1}월`;
   const first = new Date(year, month, 1).getDay(), days = new Date(year, month+1, 0).getDate();
   const cells = Math.ceil((first+days)/7)*7;
+  const dayFormat = new Intl.DateTimeFormat('ko-KR', {year:'numeric',month:'long',day:'numeric',weekday:'long'});
   const byDate = new Map();
   for (const item of items) if (item.date) {
     if (!byDate.has(item.date)) byDate.set(item.date, []);
@@ -122,7 +123,8 @@ function renderCalendar(items) {
   $('#calendar-grid').innerHTML = Array.from({length:cells}, (_,index) => {
     const current = new Date(year, month, index-first+1), day = localDate(current);
     const matches = byDate.get(day) || [];
-    return `<button class="calendar-day ${current.getMonth() !== month ? 'outside' : ''} ${day === state.selectedDay ? 'selected' : ''} ${day === localDate(new Date()) ? 'today' : ''}" data-day="${day}"><span class="day-number">${current.getDate()}</span>${matches.slice(0,2).map(item => `<span class="calendar-dot ${item.kind === 'event' ? 'event' : ''}">${escapeHTML(item.title)}</span>`).join('')}</button>`;
+    const label = dayFormat.format(current);
+    return `<button class="calendar-day ${current.getMonth() !== month ? 'outside' : ''} ${day === state.selectedDay ? 'selected' : ''} ${day === localDate(new Date()) ? 'today' : ''}" data-day="${day}" aria-label="${label}, ${matches.length}개 항목" aria-pressed="${day === state.selectedDay}"><span class="day-number">${current.getDate()}</span>${matches.slice(0,2).map(item => `<span class="calendar-dot ${item.kind === 'event' ? 'event' : ''}">${escapeHTML(item.title)}</span>`).join('')}${matches.length > 2 ? `<span class="calendar-more">+${matches.length-2}개 더</span>` : ''}</button>`;
   }).join('');
   const selected = new Date(`${state.selectedDay}T12:00:00`);
   $('#selected-day-title').textContent = new Intl.DateTimeFormat('ko-KR',{month:'long',day:'numeric',weekday:'long'}).format(selected);
@@ -170,7 +172,13 @@ document.addEventListener('click', async event => {
   const create = event.target.closest('[data-new]'); if (create) return openEditor(create.dataset.new);
   const scope = event.target.closest('[data-scope]'); if (scope) {state.scope = scope.dataset.scope; document.querySelectorAll('[data-scope]').forEach(el => el.classList.toggle('selected',el === scope)); return render();}
   const filter = event.target.closest('[data-filter]'); if (filter) return setTaskFilter(filter.dataset.filter);
-  const day = event.target.closest('[data-day]'); if (day) {state.selectedDay = day.dataset.day; return render();}
+  const day = event.target.closest('[data-day]'); if (day) {
+    const selected = new Date(`${day.dataset.day}T12:00:00`);
+    state.month = new Date(selected.getFullYear(), selected.getMonth(), 1);
+    state.selectedDay = day.dataset.day;
+    state.preferredDay = selected.getDate();
+    return render();
+  }
   const compactEdit = event.target.closest('[data-compact-edit]'); if (compactEdit) {
     const item = state.items.find(entry => entry.id === compactEdit.dataset.compactEdit);
     await toggleCompact(false); setTimeout(() => openEditor(item.kind,item), 300); return;
@@ -211,9 +219,16 @@ $('#confirm-delete').onclick = async () => {
   catch(error) {toast(error.message);}
   finally {button.disabled = false;}
 };
-$('#prev-month').onclick = () => {state.month = new Date(state.month.getFullYear(),state.month.getMonth()-1,1); render();};
-$('#next-month').onclick = () => {state.month = new Date(state.month.getFullYear(),state.month.getMonth()+1,1); render();};
-$('#go-today').onclick = () => {state.month = new Date(); state.selectedDay = localDate(new Date()); render();};
+function moveMonth(offset) {
+  const target = new Date(state.month.getFullYear(), state.month.getMonth() + offset, 1);
+  const day = Math.min(state.preferredDay, new Date(target.getFullYear(), target.getMonth() + 1, 0).getDate());
+  state.month = target;
+  state.selectedDay = localDate(new Date(target.getFullYear(), target.getMonth(), day));
+  render();
+}
+$('#prev-month').onclick = () => moveMonth(-1);
+$('#next-month').onclick = () => moveMonth(1);
+$('#go-today').onclick = () => {const today = new Date(); state.month = today; state.selectedDay = localDate(today); state.preferredDay = today.getDate(); render();};
 async function toggleCompact(value = !desktopCompact) {
   if (!window.todoDesktop) return;
   try {await window.todoDesktop.compact(value);} catch(error) {toast(error.message);}

@@ -176,6 +176,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .calendar-day.today .day-number { background: var(--coral); color: var(--ink); border: 1px solid var(--ink); animation: pop-in .35s cubic-bezier(.2,1.6,.4,1); }
 .calendar-dot { background: #dfece7; color: var(--ink); }
 .calendar-dot.event { background: #ffe2d3; color: var(--ink); }
+.calendar-more { display: block; margin-top: 4px; color: #9a6049; font-size: 9px; font-weight: 750; }
 .idea-intro { background: #e8f2ec; border: 1.5px dashed #b3c8bd; }
 .idea-intro>span { color: #79ac9f; }
 .idea-card { border: 1.5px solid var(--line); box-shadow: 3px 4px 0 #273b470e; transition: transform .32s cubic-bezier(.2,1.5,.4,1), box-shadow .3s, border-color .2s; }
