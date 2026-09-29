@@ -225,7 +225,18 @@ dialog::backdrop { background: #283b4770; animation: backdrop-appear .25s ease-o
 @keyframes empty-settle { from { opacity: 0; transform: translateY(12px) rotate(-5deg); } to { opacity: 1; transform: translateY(0) rotate(0); } }
 @keyframes tiny-wiggle { 0%,90%,100% { transform: rotate(0); } 93% { transform: rotate(-15deg); } 96% { transform: rotate(9deg); } }
 @keyframes pop-in { from { transform: scale(.7); } to { transform: scale(1); } }
+@media (max-width: 900px) {
+  .desktop-app .local-pill,.desktop-app .pin-button span { display: none; }
+}
 @media (max-width: 760px) {
+  .desktop-app .sidebar { display: flex; flex-direction: row; align-items: center; gap: 10px; height: auto; top: auto; padding: 8px 12px; }
+  .desktop-app .brand { flex: none; gap: 5px; padding: 0; }
+  .desktop-app .brand-logo { width: 31px; height: 31px; }
+  .desktop-app .brand strong { font-size: 15px; }
+  .desktop-app .brand small { display: none; }
+  .desktop-app .sidebar nav { flex: 1; min-width: 0; }
+  .desktop-app .nav-item { height: 36px; gap: 5px; padding: 0 7px; font-size: 10px; }
+  .desktop-app .nav-item>span { width: 16px; font-size: 16px; }
   .sidebar { background: #f8f2e6; }
   .main { background: var(--cream); }
   .summary-card { min-height: 120px; }
