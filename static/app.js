@@ -2,6 +2,7 @@ const $ = selector => document.querySelector(selector);
 const state = {items: [], view: 'home', scope: 'all', taskFilter: 'open', editing: null, month: new Date(), selectedDay: localDate(new Date()), preferredDay: new Date().getDate()};
 let desktopCompact = false;
 let renderedDate = '';
+let conflictAction = null;
 const kindName = {task: '할 일', event: '일정', idea: '아이디어'};
 const scopeName = {work: '업무', personal: '개인'};
 
@@ -22,10 +23,14 @@ function toast(message) {
   clearTimeout(toast.timer); toast.timer = setTimeout(() => el.classList.remove('show'), 3000);
 }
 async function api(path, options = {}) {
-  if (window.todoDesktop) return window.todoDesktop.api(path, options.method || 'GET', options.body ? JSON.parse(options.body) : null);
+  if (window.todoDesktop) {
+    const result = await window.todoDesktop.api(path, options.method || 'GET', options.body ? JSON.parse(options.body) : null);
+    if (!result.ok) {const error = new Error(result.error); error.status = result.status; throw error;}
+    return result.data;
+  }
   const response = await fetch(path, {headers: {'Content-Type': 'application/json'}, ...options});
   const body = await response.json();
-  if (!response.ok) throw new Error(body.error || '요청에 실패했습니다.');
+  if (!response.ok) {const error = new Error(body.error || '요청에 실패했습니다.'); error.status = response.status; throw error;}
   return body;
 }
 async function refresh() {
@@ -161,6 +166,11 @@ function openEditor(kind = 'task', item = null) {
   $('#editor').showModal();
   form.elements.title.focus();
 }
+function showConflict(action) {
+  conflictAction = action;
+  $('#conflict-force').textContent = action === 'delete' ? '변경된 기록 삭제하기' : '내 내용으로 덮어쓰기';
+  $('#conflict-dialog').showModal();
+}
 document.addEventListener('click', async event => {
   const summary = event.target.closest('[data-summary]'); if (summary) {
     if (summary.dataset.summary === 'today') $('#today-list').scrollIntoView({behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start'});
@@ -192,7 +202,13 @@ document.addEventListener('click', async event => {
       rowElement.classList.add('completing');
       await new Promise(resolve => setTimeout(resolve, 180));
     }
-    try {await api(`/api/items/${item.id}`,{method:'PATCH',body:JSON.stringify({status:item.status === 'done' ? 'todo' : 'done'})}); await refresh();} catch(error) {rowElement.classList.remove('completing'); toast(error.message);}
+    try {await api(`/api/items/${item.id}`,{method:'PATCH',body:JSON.stringify({status:item.status === 'done' ? 'todo' : 'done',expected_revision:item.revision})}); await refresh();}
+    catch(error) {
+      rowElement.classList.remove('completing');
+      complete.classList.toggle('done', item.status === 'done'); complete.textContent = item.status === 'done' ? '✓' : '';
+      if (error.status === 409) await refresh();
+      toast(error.message);
+    }
   }
 });
 $('#editor-form').addEventListener('submit', async event => {
@@ -200,6 +216,7 @@ $('#editor-form').addEventListener('submit', async event => {
   const form = event.currentTarget, data = Object.fromEntries(new FormData(form));
   try {
     const created = !state.editing;
+    if (!created) data.expected_revision = state.editing.revision;
     const saved = await api(created ? '/api/items' : `/api/items/${state.editing.id}`,{method:created ? 'POST' : 'PATCH',body:JSON.stringify(data)});
     $('#editor').close(); await refresh();
     if (created && state.view === 'tasks' && saved.kind === 'task') {
@@ -207,7 +224,7 @@ $('#editor-form').addEventListener('submit', async event => {
       if (!visible) setTaskFilter(saved.status === 'todo' ? 'open' : saved.status);
     }
     toast(created ? '기록했습니다.' : '수정했습니다.');
-  } catch(error) {toast(error.message);}
+  } catch(error) {if (error.status === 409) showConflict('save'); else toast(error.message);}
 });
 document.querySelectorAll('#editor-form input[name="kind"]').forEach(input => {input.onchange = syncStatusField;});
 $('#close-dialog').onclick = $('#cancel-button').onclick = () => $('#editor').close();
@@ -215,8 +232,27 @@ $('#delete-button').onclick = () => {if (!state.editing) return; $('#delete-item
 $('#cancel-delete').onclick = () => $('#delete-dialog').close();
 $('#confirm-delete').onclick = async () => {
   const button = $('#confirm-delete'); button.disabled = true;
-  try {await api(`/api/items/${state.editing.id}`,{method:'DELETE'}); $('#delete-dialog').close(); $('#editor').close(); toast('삭제했습니다.'); await refresh();}
-  catch(error) {toast(error.message);}
+  try {await api(`/api/items/${state.editing.id}`,{method:'DELETE',body:JSON.stringify({expected_revision:state.editing.revision})}); $('#delete-dialog').close(); $('#editor').close(); toast('삭제했습니다.'); await refresh();}
+  catch(error) {if (error.status === 409) {$('#delete-dialog').close(); showConflict('delete');} else toast(error.message);}
+  finally {button.disabled = false;}
+};
+$('#conflict-keep').onclick = () => $('#conflict-dialog').close();
+$('#conflict-reload').onclick = async () => {
+  try {
+    const items = await api('/api/items'), latest = items.find(item => item.id === state.editing.id);
+    $('#conflict-dialog').close(); $('#editor').close();
+    state.items = items; render();
+    if (latest) openEditor(latest.kind, latest); else toast('기록이 다른 곳에서 삭제됐습니다.');
+  } catch(error) {toast(error.message);}
+};
+$('#conflict-force').onclick = async () => {
+  const button = $('#conflict-force'); button.disabled = true;
+  try {
+    const itemId = state.editing.id, deleting = conflictAction === 'delete';
+    await api(`/api/items/${itemId}`,{method:deleting ? 'DELETE' : 'PATCH',body:deleting ? undefined : JSON.stringify(Object.fromEntries(new FormData($('#editor-form'))))});
+    $('#conflict-dialog').close(); $('#editor').close(); await refresh();
+    toast(deleting ? '삭제했습니다.' : '내 내용으로 저장했습니다.');
+  } catch(error) {toast(error.message);}
   finally {button.disabled = false;}
 };
 function moveMonth(offset) {

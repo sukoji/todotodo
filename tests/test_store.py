@@ -1,7 +1,10 @@
 import os
 import copy
+import sqlite3
 import tempfile
 import unittest
+from concurrent.futures import ThreadPoolExecutor
+from contextlib import closing
 from pathlib import Path
 from unittest.mock import patch
 
@@ -57,6 +60,41 @@ class StoreTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             store.import_items(invalid)
         self.assertEqual(store.list_items(), [first])
+
+    def test_stale_edit_and_delete_preserve_agent_changes(self):
+        item = store.create_item({"title": "초안"})
+        changed = store.update_item(item["id"], {"title": "에이전트 수정"}, expected_revision=item["revision"])
+        self.assertEqual(changed["revision"], 1)
+        with self.assertRaises(store.ConflictError):
+            store.update_item(item["id"], {"title": "오래된 화면 수정"}, expected_revision=item["revision"])
+        with self.assertRaises(store.ConflictError):
+            store.delete_item(item["id"], expected_revision=item["revision"])
+        self.assertEqual(store.get_item(item["id"])["title"], "에이전트 수정")
+        self.assertTrue(store.delete_item(item["id"], expected_revision=changed["revision"]))
+
+    def test_old_database_and_backup_gain_revision(self):
+        self.db_patch.stop()
+        old_db = Path(self.temp.name) / "old.db"
+        with closing(sqlite3.connect(old_db)) as db:
+            db.execute("""CREATE TABLE items (id TEXT PRIMARY KEY, title TEXT NOT NULL, details TEXT NOT NULL DEFAULT '',
+                kind TEXT NOT NULL, scope TEXT NOT NULL, status TEXT NOT NULL, priority TEXT NOT NULL,
+                date TEXT NOT NULL DEFAULT '', time TEXT NOT NULL DEFAULT '', tags TEXT NOT NULL DEFAULT '',
+                source TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL)""")
+            db.execute("INSERT INTO items VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)", (
+                "a" * 32, "기존 기록", "", "task", "personal", "todo", "normal", "", "", "", "web",
+                "2026-09-29T10:00:00+09:00", "2026-09-29T10:00:00+09:00"))
+            db.commit()
+        self.db_patch = patch.object(store, "DB_PATH", old_db)
+        self.db_patch.start()
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            list(pool.map(lambda _: store.init_db(), range(2)))
+        self.assertEqual(store.get_item("a" * 32)["title"], "기존 기록")
+        self.assertEqual(store.get_item("a" * 32)["revision"], 0)
+        item = store.create_item({"title": "옛날 백업"})
+        legacy = {key: value for key, value in item.items() if key != "revision"}
+        store.delete_item(item["id"])
+        self.assertEqual(store.import_items({"format": "todotodo-v1", "items": [legacy]}), {"imported": 1, "skipped": 0})
+        self.assertEqual(store.get_item(item["id"])["revision"], 0)
 
 
 if __name__ == "__main__":

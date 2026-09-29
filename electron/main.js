@@ -203,7 +203,7 @@ async function requestAPI(endpoint, method = 'GET', body = null) {
     body: body == null ? undefined : JSON.stringify(body)
   });
   const data = await response.json();
-  if (!response.ok) throw new Error(data.error || '데이터 요청에 실패했습니다.');
+  if (!response.ok) {const error = new Error(data.error || '데이터 요청에 실패했습니다.'); error.status = response.status; throw error;}
   return data;
 }
 
@@ -307,7 +307,11 @@ else {
     const verifySender = event => {
       if (!window || event.sender !== window.webContents || !event.senderFrame.url.startsWith('file:')) throw new Error('허용되지 않은 요청입니다.');
     };
-    ipcMain.handle('todo:api', (event, endpoint, method, body) => {verifySender(event); return requestAPI(endpoint, method, body);});
+    ipcMain.handle('todo:api', async (event, endpoint, method, body) => {
+      verifySender(event);
+      try {return {ok: true, data: await requestAPI(endpoint, method, body)};}
+      catch (error) {return {ok: false, error: error.message, status: error.status || 500};}
+    });
     ipcMain.handle('todo:state', event => {
       verifySender(event);
       const mcpConfig = app.isPackaged

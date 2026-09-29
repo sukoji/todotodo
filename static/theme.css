@@ -62,6 +62,11 @@ body { color: var(--ink); background: var(--cream); }
 #delete-item-title { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
 .delete-confirm-button { height: 32px; padding: 0 12px; border: 1px solid #cf7c65; border-radius: 7px; background: #ffe4d3; color: #8d4835; font-size: 10px; font-weight: 750; }
 .delete-confirm-button:hover { background: #ffd0bc; }
+#conflict-dialog { width: min(500px, calc(100vw - 24px)); background: #fffdf7; border: 1.5px solid #dbc6b3; }
+.conflict-mark { display: grid; place-items: center; width: 40px; height: 40px; border: 1.5px solid var(--ink); border-radius: 12px; background: #e5f1e9; color: #47776c; font-size: 25px; }
+#conflict-dialog h2 { margin: 16px 0 7px; font-size: 18px; }
+#conflict-dialog p { color: var(--muted); font-size: 12px; line-height: 1.6; }
+.conflict-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin-top: 22px; }
 button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible { outline-color: #e9a78f; }
 .sidebar { background: #f8f2e6; border-right: 1px solid var(--line); }
 .brand { gap: 7px; padding-bottom: 23px; }

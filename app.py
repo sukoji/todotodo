@@ -6,7 +6,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
-from store import create_item, day_brief, delete_item, import_items, init_db, list_items, update_item
+from store import ConflictError, create_item, day_brief, delete_item, import_items, init_db, list_items, update_item
 
 STATIC = Path(__file__).with_name("static")
 FILES = {"/": ("index.html", "text/html; charset=utf-8"),
@@ -66,10 +66,17 @@ class Handler(BaseHTTPRequestHandler):
             if not item_id or "/" in item_id:
                 return self.send_data(404, {"error": "찾을 수 없습니다."})
             if self.command == "PATCH":
-                item = update_item(item_id, self.read_json())
+                changes = self.read_json()
+                if not isinstance(changes, dict):
+                    raise ValueError("JSON 객체가 필요합니다.")
+                expected_revision = changes.pop("expected_revision", None)
+                item = update_item(item_id, changes, expected_revision)
                 return self.send_data(200, item) if item else self.send_data(404, {"error": "항목을 찾을 수 없습니다."})
             if self.command == "DELETE":
-                return self.send_data(200, {"deleted": True}) if delete_item(item_id) else self.send_data(404, {"error": "항목을 찾을 수 없습니다."})
+                changes = self.read_json() if int(self.headers.get("Content-Length", "0")) else {}
+                if not isinstance(changes, dict) or set(changes) - {"expected_revision"}:
+                    raise ValueError("삭제 요청이 올바르지 않습니다.")
+                return self.send_data(200, {"deleted": True}) if delete_item(item_id, changes.get("expected_revision")) else self.send_data(404, {"error": "항목을 찾을 수 없습니다."})
         return self.send_data(404, {"error": "찾을 수 없습니다."})
 
     def do_GET(self):
@@ -87,6 +94,8 @@ class Handler(BaseHTTPRequestHandler):
     def handle_request(self):
         try:
             self.dispatch()
+        except ConflictError as exc:
+            self.send_data(409, {"error": str(exc)})
         except (ValueError, TypeError) as exc:
             self.send_data(400, {"error": str(exc)})
 

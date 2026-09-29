@@ -29,6 +29,18 @@ class APITests(unittest.TestCase):
                 with urlopen(request) as response:
                     self.assertEqual(response.status, 201)
                 self.assertEqual(store.list_items()[0]["title"], "화면과 에이전트가 공유")
+                item = store.list_items()[0]
+                patch_request = Request(url + f"/api/items/{item['id']}", data=json.dumps({"status": "doing", "expected_revision": 0}).encode(), headers={"Content-Type": "application/json", "Authorization": "Bearer test-secret"}, method="PATCH")
+                with urlopen(patch_request) as response:
+                    self.assertEqual(json.load(response)["revision"], 1)
+                with self.assertRaises(HTTPError) as conflict:
+                    urlopen(patch_request)
+                self.assertEqual(conflict.exception.code, 409)
+                delete_request = Request(url + f"/api/items/{item['id']}", data=json.dumps({"expected_revision": 0}).encode(), headers={"Content-Type": "application/json", "Authorization": "Bearer test-secret"}, method="DELETE")
+                with self.assertRaises(HTTPError) as delete_conflict:
+                    urlopen(delete_request)
+                self.assertEqual(delete_conflict.exception.code, 409)
+                self.assertEqual(store.get_item(item["id"])["status"], "doing")
                 backup = {"format": "todotodo-v1", "items": store.list_items()}
                 import_request = Request(url + "/api/import", data=json.dumps(backup).encode(), headers={"Content-Type": "application/json"}, method="POST")
                 with self.assertRaises(HTTPError) as error:

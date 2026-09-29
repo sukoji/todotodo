@@ -16,7 +16,17 @@ SCOPES = {"work", "personal"}
 STATUSES = {"todo", "doing", "done"}
 PRIORITIES = {"low", "normal", "high"}
 FIELDS = {"title", "details", "kind", "scope", "status", "priority", "date", "time", "tags"}
-BACKUP_FIELDS = FIELDS | {"id", "source", "created_at", "updated_at"}
+LEGACY_BACKUP_FIELDS = FIELDS | {"id", "source", "created_at", "updated_at"}
+BACKUP_FIELDS = LEGACY_BACKUP_FIELDS | {"revision"}
+
+
+class ConflictError(Exception):
+    pass
+
+
+def validate_revision(value):
+    if type(value) is not int or value < 0:
+        raise ValueError("개정 번호가 올바르지 않습니다.")
 
 
 @contextmanager
@@ -25,8 +35,8 @@ def connection():
     db = sqlite3.connect(DB_PATH, timeout=10)
     db.row_factory = sqlite3.Row
     try:
-        db.execute("PRAGMA journal_mode=WAL")
         db.execute("PRAGMA busy_timeout=10000")
+        db.execute("PRAGMA journal_mode=WAL")
         yield db
         db.commit()
     finally:
@@ -35,13 +45,17 @@ def connection():
 
 def init_db():
     with connection() as db:
+        db.execute("BEGIN IMMEDIATE")
         db.execute("""CREATE TABLE IF NOT EXISTS items (
             id TEXT PRIMARY KEY, title TEXT NOT NULL, details TEXT NOT NULL DEFAULT '',
             kind TEXT NOT NULL, scope TEXT NOT NULL, status TEXT NOT NULL,
             priority TEXT NOT NULL, date TEXT NOT NULL DEFAULT '', time TEXT NOT NULL DEFAULT '',
             tags TEXT NOT NULL DEFAULT '', source TEXT NOT NULL,
-            created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+            created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+            revision INTEGER NOT NULL DEFAULT 0
         )""")
+        if "revision" not in {row["name"] for row in db.execute("PRAGMA table_info(items)")}:
+            db.execute("ALTER TABLE items ADD COLUMN revision INTEGER NOT NULL DEFAULT 0")
         db.execute("CREATE INDEX IF NOT EXISTS idx_items_date ON items(date)")
 
 
@@ -90,11 +104,11 @@ def create_item(data, source="web"):
         "scope": data.get("scope", "personal"), "status": data.get("status", "todo"),
         "priority": data.get("priority", "normal"), "date": data.get("date", ""),
         "time": data.get("time", ""), "tags": data.get("tags", "").strip(),
-        "source": source, "created_at": now, "updated_at": now,
+        "source": source, "created_at": now, "updated_at": now, "revision": 0,
     }
     with connection() as db:
-        db.execute("""INSERT INTO items VALUES
-            (:id,:title,:details,:kind,:scope,:status,:priority,:date,:time,:tags,:source,:created_at,:updated_at)""", item)
+        db.execute("""INSERT INTO items (id,title,details,kind,scope,status,priority,date,time,tags,source,created_at,updated_at,revision)
+            VALUES (:id,:title,:details,:kind,:scope,:status,:priority,:date,:time,:tags,:source,:created_at,:updated_at,:revision)""", item)
     return item
 
 
@@ -130,7 +144,9 @@ def get_item(item_id):
     return dict(row) if row else None
 
 
-def update_item(item_id, data):
+def update_item(item_id, data, expected_revision=None):
+    if expected_revision is not None:
+        validate_revision(expected_revision)
     validate(data, partial=True)
     if not data:
         raise ValueError("변경할 필드가 없습니다.")
@@ -139,17 +155,28 @@ def update_item(item_id, data):
         if key in data:
             data[key] = data[key].strip()
     data["updated_at"] = datetime.now().astimezone().isoformat(timespec="seconds")
-    assignments = ", ".join(f"{key} = ?" for key in data)
+    assignments = ", ".join(f"{key} = ?" for key in data) + ", revision = revision + 1"
+    where = "id = ?" + (" AND revision = ?" if expected_revision is not None else "")
+    params = [*data.values(), item_id] + ([expected_revision] if expected_revision is not None else [])
     with connection() as db:
-        result = db.execute(f"UPDATE items SET {assignments} WHERE id = ?", [*data.values(), item_id])
+        result = db.execute(f"UPDATE items SET {assignments} WHERE {where}", params)
         if not result.rowcount:
+            if expected_revision is not None and db.execute("SELECT 1 FROM items WHERE id = ?", (item_id,)).fetchone():
+                raise ConflictError("기록이 다른 곳에서 바뀌었습니다.")
             return None
     return get_item(item_id)
 
 
-def delete_item(item_id):
+def delete_item(item_id, expected_revision=None):
+    if expected_revision is not None:
+        validate_revision(expected_revision)
+    where = "id = ?" + (" AND revision = ?" if expected_revision is not None else "")
+    params = [item_id] + ([expected_revision] if expected_revision is not None else [])
     with connection() as db:
-        return db.execute("DELETE FROM items WHERE id = ?", (item_id,)).rowcount > 0
+        result = db.execute(f"DELETE FROM items WHERE {where}", params)
+        if not result.rowcount and expected_revision is not None and db.execute("SELECT 1 FROM items WHERE id = ?", (item_id,)).fetchone():
+            raise ConflictError("기록이 다른 곳에서 바뀌었습니다.")
+        return result.rowcount > 0
 
 
 def import_items(backup):
@@ -159,10 +186,12 @@ def import_items(backup):
     if len(items) > 10000:
         raise ValueError("한 번에 10,000개 이하의 항목만 가져올 수 있습니다.")
     for item in items:
-        if not isinstance(item, dict) or set(item) != BACKUP_FIELDS:
+        if not isinstance(item, dict) or set(item) not in (LEGACY_BACKUP_FIELDS, BACKUP_FIELDS):
             raise ValueError("백업 항목의 필드가 올바르지 않습니다.")
-        if any(not isinstance(item[key], str) for key in BACKUP_FIELDS):
+        if any(not isinstance(item[key], str) for key in LEGACY_BACKUP_FIELDS):
             raise ValueError("백업 항목의 값이 올바르지 않습니다.")
+        if "revision" in item:
+            validate_revision(item["revision"])
         if not re.fullmatch(r"[a-f0-9]{32}", item["id"]):
             raise ValueError("백업 항목의 ID가 올바르지 않습니다.")
         if not 1 <= len(item["source"]) <= 100:
@@ -179,8 +208,9 @@ def import_items(backup):
     imported = 0
     with connection() as db:
         for item in items:
-            result = db.execute("""INSERT OR IGNORE INTO items VALUES
-                (:id,:title,:details,:kind,:scope,:status,:priority,:date,:time,:tags,:source,:created_at,:updated_at)""", item)
+            entry = {**item, "revision": item.get("revision", 0)}
+            result = db.execute("""INSERT OR IGNORE INTO items (id,title,details,kind,scope,status,priority,date,time,tags,source,created_at,updated_at,revision)
+                VALUES (:id,:title,:details,:kind,:scope,:status,:priority,:date,:time,:tags,:source,:created_at,:updated_at,:revision)""", entry)
             imported += result.rowcount
     return {"imported": imported, "skipped": len(items) - imported}
 
