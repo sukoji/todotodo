@@ -1,6 +1,6 @@
 [project]
 name = "todotodo-agentic"
-version = "0.1.3"
+version = "0.1.4"
 description = "Local-first tasks, schedule, and ideas with MCP agent integration"
 requires-python = ">=3.10"
 dependencies = ["mcp>=2,<3"]

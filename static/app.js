@@ -1,6 +1,7 @@
 const $ = selector => document.querySelector(selector);
 const state = {items: [], view: 'home', scope: 'all', taskFilter: 'open', editing: null, month: new Date(), selectedDay: localDate(new Date())};
 let desktopCompact = false;
+let renderedDate = '';
 const kindName = {task: '할 일', event: '일정', idea: '아이디어'};
 const scopeName = {work: '업무', personal: '개인'};
 
@@ -28,7 +29,12 @@ async function api(path, options = {}) {
   return body;
 }
 async function refresh() {
-  try { state.items = await api('/api/items'); render(); if ($('#search-dialog').open) renderSearch(); }
+  try {
+    const items = await api('/api/items'), today = localDate(new Date());
+    if (today === renderedDate && JSON.stringify(items) === JSON.stringify(state.items)) return;
+    state.items = items; renderedDate = today; render();
+    if ($('#search-dialog').open) renderSearch();
+  }
   catch (error) { toast(error.message); }
 }
 function scoped(items) { return state.scope === 'all' ? items : items.filter(item => item.scope === state.scope); }
@@ -36,7 +42,7 @@ function openItems(items) { return items.filter(item => item.status !== 'done');
 function row(item, showDate = true) {
   const complete = item.status === 'done';
   const meta = [scopeName[item.scope], kindName[item.kind], item.time || '', item.tags || ''].filter(Boolean);
-  return `<div class="item-row ${complete ? 'is-done' : ''}"><button class="check-button ${complete ? 'done' : ''}" data-complete="${item.id}" aria-label="${complete ? '완료 취소' : '완료'}">${complete ? '✓' : ''}</button><div class="item-body" data-edit="${item.id}"><div class="item-title">${escapeHTML(item.title)} ${item.priority === 'high' ? '<i class="priority-high" title="높은 우선순위"></i>' : ''}${item.kind === 'task' && item.status === 'doing' ? '<span class="status-chip">진행 중</span>' : ''}</div><div class="item-meta">${meta.map(text => `<span>${escapeHTML(text)}</span>`).join('<span>·</span>')}</div></div>${showDate && item.date ? `<span class="item-date">${formatDate(item.date)}</span>` : ''}</div>`;
+  return `<div class="item-row ${complete ? 'is-done' : ''}"><button class="check-button ${complete ? 'done' : ''}" data-complete="${item.id}" aria-label="${complete ? '완료 취소' : '완료'}">${complete ? '✓' : ''}</button><div class="item-body" data-edit="${item.id}" role="button" tabindex="0" aria-label="${escapeHTML(item.title)} 수정"><div class="item-title">${escapeHTML(item.title)} ${item.priority === 'high' ? '<i class="priority-high" title="높은 우선순위"></i>' : ''}${item.kind === 'task' && item.status === 'doing' ? '<span class="status-chip">진행 중</span>' : ''}</div><div class="item-meta">${meta.map(text => `<span>${escapeHTML(text)}</span>`).join('<span>·</span>')}</div></div>${showDate && item.date ? `<span class="item-date">${formatDate(item.date)}</span>` : ''}</div>`;
 }
 function empty(message) { return `<div class="empty-state"><img class="empty-illustration" src="./empty.svg" alt="">${message}</div>`; }
 function render() {
@@ -52,6 +58,10 @@ function render() {
   $('#today-count').textContent = dueToday.length;
   const todayList = [...dueToday].sort((a,b) => (a.time || '99:99').localeCompare(b.time || '99:99'));
   $('#today-list').innerHTML = todayList.length ? todayList.map(item => row(item, false)).join('') : empty('오늘 예정된 항목이 없어요.<br>새로운 하루를 계획해 보세요.');
+  const overdue = openItems(items.filter(item => item.kind === 'task' && item.date && item.date < today)).sort((a,b) => b.date.localeCompare(a.date));
+  $('#overdue-section').hidden = overdue.length === 0;
+  $('#overdue-count').textContent = `${overdue.length}개`;
+  $('#overdue-list').innerHTML = overdue.map(item => row(item)).join('');
   const upcoming = openItems(items.filter(item => item.date > today)).sort((a,b) => (a.date+a.time).localeCompare(b.date+b.time)).slice(0, 3);
   $('#upcoming-list').innerHTML = upcoming.length ? upcoming.map(item => row(item)).join('') : empty('다가오는 일정이 없어요.');
   renderTasks(items); renderIdeas(items); renderCalendar(items); renderCompact(items);
@@ -77,7 +87,7 @@ function renderTasks(items) {
 }
 function renderIdeas(items) {
   const ideas = items.filter(item => item.kind === 'idea').sort((a,b) => b.created_at.localeCompare(a.created_at));
-  $('#ideas-grid').innerHTML = ideas.length ? ideas.map(item => `<article class="idea-card" data-edit="${item.id}" tabindex="0"><div class="idea-card-top"><span>✦</span><small>${formatDate(item.created_at.slice(0,10))}</small></div><h3>${escapeHTML(item.title)}</h3><p>${escapeHTML(item.details || '메모를 추가해 보세요.')}</p><div class="idea-card-footer">${scopeName[item.scope]} ${item.tags ? '· ' + escapeHTML(item.tags) : ''}</div></article>`).join('') : empty('아이디어를 자유롭게 기록해 보세요.<br>에이전트가 남긴 아이디어도 이곳에 모입니다.');
+  $('#ideas-grid').innerHTML = ideas.length ? ideas.map(item => `<article class="idea-card" data-edit="${item.id}" role="button" tabindex="0" aria-label="${escapeHTML(item.title)} 수정"><div class="idea-card-top"><span>✦</span><small>${formatDate(item.created_at.slice(0,10))}</small></div><h3>${escapeHTML(item.title)}</h3><p>${escapeHTML(item.details || '메모를 추가해 보세요.')}</p><div class="idea-card-footer">${scopeName[item.scope]} ${item.tags ? '· ' + escapeHTML(item.tags) : ''}</div></article>`).join('') : empty('아이디어를 자유롭게 기록해 보세요.<br>에이전트가 남긴 아이디어도 이곳에 모입니다.');
 }
 function renderSearch() {
   const query = $('#search-input').value.trim().toLocaleLowerCase();
@@ -104,14 +114,19 @@ function renderCalendar(items) {
   $('#calendar-month').textContent = `${year}년 ${month+1}월`;
   const first = new Date(year, month, 1).getDay(), days = new Date(year, month+1, 0).getDate();
   const cells = Math.ceil((first+days)/7)*7;
+  const byDate = new Map();
+  for (const item of items) if (item.date) {
+    if (!byDate.has(item.date)) byDate.set(item.date, []);
+    byDate.get(item.date).push(item);
+  }
   $('#calendar-grid').innerHTML = Array.from({length:cells}, (_,index) => {
     const current = new Date(year, month, index-first+1), day = localDate(current);
-    const matches = items.filter(item => item.date === day);
+    const matches = byDate.get(day) || [];
     return `<button class="calendar-day ${current.getMonth() !== month ? 'outside' : ''} ${day === state.selectedDay ? 'selected' : ''} ${day === localDate(new Date()) ? 'today' : ''}" data-day="${day}"><span class="day-number">${current.getDate()}</span>${matches.slice(0,2).map(item => `<span class="calendar-dot ${item.kind === 'event' ? 'event' : ''}">${escapeHTML(item.title)}</span>`).join('')}</button>`;
   }).join('');
   const selected = new Date(`${state.selectedDay}T12:00:00`);
   $('#selected-day-title').textContent = new Intl.DateTimeFormat('ko-KR',{month:'long',day:'numeric',weekday:'long'}).format(selected);
-  const dayItems = items.filter(item => item.date === state.selectedDay).sort((a,b) => a.time.localeCompare(b.time));
+  const dayItems = [...(byDate.get(state.selectedDay) || [])].sort((a,b) => a.time.localeCompare(b.time));
   $('#selected-day-list').innerHTML = dayItems.length ? dayItems.map(item => row(item,false)).join('') : empty('이날의 일정이 없어요.');
 }
 function setView(view) {
@@ -321,7 +336,12 @@ async function initializeDesktop() {
 }
 $('#close-ai-result').onclick = $('#done-ai-result').onclick = () => $('#ai-result').close();
 $('#copy-ai-result').onclick = async () => {try {await navigator.clipboard.writeText($('#ai-result-text').textContent); toast('내용을 복사했습니다.');} catch {toast('복사할 수 없습니다.');}};
-document.addEventListener('keydown', event => {if (event.key === 'Enter' && event.target.matches('.idea-card')) openEditor('idea',state.items.find(item => item.id === event.target.dataset.edit));});
+document.addEventListener('keydown', event => {
+  if ((event.key === 'Enter' || event.key === ' ') && event.target.matches('[data-edit][role="button"]')) {
+    event.preventDefault();
+    openEditor('task',state.items.find(item => item.id === event.target.dataset.edit));
+  }
+});
 document.addEventListener('keydown', event => {
   if (event.ctrlKey && event.key.toLowerCase() === 'k') {event.preventDefault(); openSearch();}
   if (window.todoDesktop && event.ctrlKey && event.shiftKey && event.key.toLowerCase() === 'm') {event.preventDefault(); toggleCompact();}

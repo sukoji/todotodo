@@ -148,6 +148,13 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 #compact-form button:hover { transform: scale(1.1) rotate(6deg); }
 .item-title { color: var(--ink); }
 .status-chip { display: inline-block; margin-left: 7px; padding: 1px 5px; border: 1px solid #9ccbbe; border-radius: 5px; background: #e5f1e9; color: #47776c; font-size: 9px; font-weight: 750; vertical-align: 1px; }
+.overdue-section { margin: 0 24px 14px; border-top: 1px dashed #d9c9af; }
+.overdue-section[hidden] { display: none; }
+.overdue-heading { display: flex; align-items: center; gap: 8px; padding-top: 17px; }
+.overdue-heading h3 { margin: 0; color: #9a6049; font-size: 11px; }
+.overdue-heading span { padding: 2px 6px; border-radius: 6px; background: #ffe4d3; color: #8d4835; font-size: 9px; font-weight: 750; }
+.overdue-section .item-list { padding: 8px 0 0; }
+.item-body:focus-visible,.idea-card:focus-visible { outline: 3px solid #e9a78f; outline-offset: 3px; border-radius: 5px; }
 #tasks-list:has(.item-row) { min-height: 0; }
 .check-button { border-color: #9cabb0; border-radius: 6px; transition: background .18s, transform .35s cubic-bezier(.2,1.8,.4,1); }
 .check-button:hover { transform: scale(1.23) rotate(-8deg); }
