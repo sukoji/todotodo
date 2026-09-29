@@ -4,13 +4,13 @@ const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 const {brief, providers} = require('./ai');
+const {dueReminder, pruneReminderHistory} = require('./reminders');
 
 const root = path.resolve(__dirname, '..');
 app.setName('TodoTodo');
 let window, edgeWindow, edgeDisplayId, server, baseURL, authToken, dbPath, settingsPath, secretsPath, timer, boundsTimer, movingByApp = false;
-const defaults = {alwaysOnTop: false, opacity: 100, notifications: true, reminderMinutes: 10, compact: false, edgeSide: 'right', normalBounds: {}, compactBounds: {}, lastDisplayId: null};
+const defaults = {alwaysOnTop: false, opacity: 100, notifications: true, reminderMinutes: 10, compact: false, edgeSide: 'right', normalBounds: {}, compactBounds: {}, lastDisplayId: null, reminderHistory: {}};
 let settings = {...defaults};
-const notified = new Set();
 
 function saveSettings() {
   fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2));
@@ -21,6 +21,7 @@ function loadSettings() {
     const data = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
     settings = {...defaults, ...data};
   } catch { settings = {...defaults}; }
+  settings.reminderHistory = pruneReminderHistory(settings.reminderHistory, Date.now());
 }
 
 function readSecrets() {
@@ -232,19 +233,19 @@ async function checkReminders() {
   if (!settings.notifications || !Notification.isSupported()) return;
   try {
     const dateKey = value => `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, '0')}-${String(value.getDate()).padStart(2, '0')}`;
-    const today = new Date(), tomorrow = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1);
-    const items = await requestAPI(`/api/items?start=${dateKey(today)}&end=${dateKey(tomorrow)}`);
+    const today = new Date(), yesterday = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 1);
+    const tomorrow = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1);
+    const items = await requestAPI(`/api/items?start=${dateKey(yesterday)}&end=${dateKey(tomorrow)}`);
     const now = Date.now();
     for (const item of items) {
-      if (item.status === 'done' || !item.date || !item.time || item.kind === 'idea') continue;
-      const start = new Date(`${item.date}T${item.time}:00`).getTime();
-      const reminder = start - settings.reminderMinutes * 60000;
-      const key = `${item.id}:${item.date}:${item.time}:${settings.reminderMinutes}`;
-      if (now >= reminder && now < reminder + 60000 && !notified.has(key)) {
-        notified.add(key);
-        const notice = new Notification({title: item.title, body: settings.reminderMinutes ? `${settings.reminderMinutes}분 후 예정 · ${item.scope === 'work' ? '업무' : '개인'}` : '지금 예정된 일정입니다.'});
-        notice.on('click', () => {window.show(); window.focus();});
+      const reminder = dueReminder(item, now, settings.reminderMinutes);
+      if (reminder && !settings.reminderHistory[reminder.key]) {
+        const notice = new Notification({title: item.title, body: reminder.body});
+        notice.on('click', () => {if (edgeWindow?.isVisible()) restoreFromEdge(); else {window.show(); window.focus();}});
         notice.show();
+        settings.reminderHistory = pruneReminderHistory(settings.reminderHistory, now);
+        settings.reminderHistory[reminder.key] = now;
+        saveSettings();
       }
     }
   } catch (error) { console.error('Reminder check failed:', error.message); }
