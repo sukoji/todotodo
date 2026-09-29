@@ -36,7 +36,12 @@ def connection():
     db.row_factory = sqlite3.Row
     try:
         db.execute("PRAGMA busy_timeout=10000")
-        db.execute("PRAGMA journal_mode=WAL")
+        try:
+            db.execute("PRAGMA journal_mode=WAL")
+        except sqlite3.OperationalError as exc:
+            if "locked" not in str(exc).lower():
+                raise
+            # Another process can be switching the same database to WAL at startup.
         yield db
         db.commit()
     finally:

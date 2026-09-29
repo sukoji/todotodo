@@ -88,6 +88,8 @@ class StoreTests(unittest.TestCase):
         self.db_patch.start()
         with ThreadPoolExecutor(max_workers=2) as pool:
             list(pool.map(lambda _: store.init_db(), range(2)))
+        with closing(sqlite3.connect(old_db)) as db:
+            self.assertEqual(db.execute("PRAGMA journal_mode").fetchone()[0], "wal")
         self.assertEqual(store.get_item("a" * 32)["title"], "기존 기록")
         self.assertEqual(store.get_item("a" * 32)["revision"], 0)
         item = store.create_item({"title": "옛날 백업"})

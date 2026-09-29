@@ -51,6 +51,10 @@ function row(item, showDate = true) {
 }
 function empty(message) { return `<div class="empty-state"><img class="empty-illustration" src="./empty.svg" alt="">${message}</div>`; }
 function render() {
+  const focused = document.activeElement;
+  const focusType = focused?.dataset.edit ? 'edit' : focused?.dataset.complete ? 'complete' : focused?.dataset.compactEdit ? 'compact-edit' : null;
+  const focusId = focusType && focused.dataset[focusType === 'compact-edit' ? 'compactEdit' : focusType];
+  const focusArea = focused?.closest('.view, .compact-shell');
   const items = scoped(state.items), today = localDate(new Date());
   const dueToday = openItems(items.filter(item => item.date === today));
   const activeTasks = openItems(items.filter(item => item.kind === 'task'));
@@ -70,6 +74,7 @@ function render() {
   const upcoming = openItems(items.filter(item => item.date > today)).sort((a,b) => (a.date+a.time).localeCompare(b.date+b.time)).slice(0, 3);
   $('#upcoming-list').innerHTML = upcoming.length ? upcoming.map(item => row(item)).join('') : empty('다가오는 일정이 없어요.');
   renderTasks(items); renderIdeas(items); renderCalendar(items); renderCompact(items);
+  if (focusId && !focused.isConnected) focusArea?.querySelector(`[data-${focusType}="${focusId}"]`)?.focus({preventScroll:true});
 }
 function renderCompact(items) {
   const today = localDate(new Date());
@@ -95,6 +100,7 @@ function renderIdeas(items) {
   $('#ideas-grid').innerHTML = ideas.length ? ideas.map(item => `<article class="idea-card" data-edit="${item.id}" role="button" tabindex="0" aria-label="${escapeHTML(item.title)} 수정"><div class="idea-card-top"><span>✦</span><small>${formatDate(item.created_at.slice(0,10))}</small></div><h3>${escapeHTML(item.title)}</h3><p>${escapeHTML(item.details || '메모를 추가해 보세요.')}</p><div class="idea-card-footer">${scopeName[item.scope]} ${item.tags ? '· ' + escapeHTML(item.tags) : ''}</div></article>`).join('') : empty('아이디어를 자유롭게 기록해 보세요.<br>에이전트가 남긴 아이디어도 이곳에 모입니다.');
 }
 function renderSearch() {
+  const focusedId = document.activeElement?.dataset.searchEdit;
   const query = $('#search-input').value.trim().toLocaleLowerCase();
   const rank = item => item.title.toLocaleLowerCase().startsWith(query) ? 0 : item.title.toLocaleLowerCase().includes(query) ? 1 : item.tags.toLocaleLowerCase().includes(query) ? 2 : 3;
   const matches = query
@@ -105,6 +111,7 @@ function renderSearch() {
     const preview = item.details?.replace(/\s+/g,' ').slice(0,120) || (item.date ? `${formatDate(item.date)} ${item.time || ''}` : '메모 없음');
     return `<button class="search-result" data-search-edit="${item.id}"><span>${kindName[item.kind]} · ${scopeName[item.scope]}${item.status === 'done' ? ' · 완료' : ''}${item.tags ? ` · ${escapeHTML(item.tags.slice(0,60))}` : ''}</span><strong>${escapeHTML(item.title)}</strong><small>${escapeHTML(preview)}</small></button>`;
   }).join('') : `<div class="search-empty">${query ? '맞는 기록이 없어요. 다른 단어로 찾아보세요.' : '아직 기록이 없어요. 먼저 한 장 적어보세요.'}</div>`;
+  if (focusedId) $('#search-results').querySelector(`[data-search-edit="${focusedId}"]`)?.focus({preventScroll:true});
 }
 async function openSearch() {
   if ($('#editor').open || $('#ai-result').open) return;
@@ -288,6 +295,13 @@ $('#search-input').oninput = renderSearch;
 $('#search-input').onkeydown = event => {
   if (event.key === 'Enter') {event.preventDefault(); $('#search-results .search-result')?.click();}
   if (event.key === 'ArrowDown') {event.preventDefault(); $('#search-results .search-result')?.focus();}
+};
+$('#search-results').onkeydown = event => {
+  const result = event.target.closest('.search-result');
+  if (!result || !['ArrowDown','ArrowUp'].includes(event.key)) return;
+  event.preventDefault();
+  const next = event.key === 'ArrowDown' ? result.nextElementSibling : result.previousElementSibling;
+  (next?.matches('.search-result') ? next : event.key === 'ArrowUp' ? $('#search-input') : result).focus();
 };
 $('#search-results').onclick = event => {
   const button = event.target.closest('[data-search-edit]');
