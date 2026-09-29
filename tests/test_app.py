@@ -29,6 +29,14 @@ class APITests(unittest.TestCase):
                 with urlopen(request) as response:
                     self.assertEqual(response.status, 201)
                 self.assertEqual(store.list_items()[0]["title"], "화면과 에이전트가 공유")
+                backup = {"format": "todotodo-v1", "items": store.list_items()}
+                import_request = Request(url + "/api/import", data=json.dumps(backup).encode(), headers={"Content-Type": "application/json"}, method="POST")
+                with self.assertRaises(HTTPError) as error:
+                    urlopen(import_request)
+                self.assertEqual(error.exception.code, 401)
+                import_request.add_header("Authorization", "Bearer test-secret")
+                with urlopen(import_request) as response:
+                    self.assertEqual(json.load(response), {"imported": 0, "skipped": 1})
                 with urlopen(url + "/logo.svg") as response:
                     self.assertEqual(response.status, 200)
             finally:

@@ -1,4 +1,5 @@
 import os
+import copy
 import tempfile
 import unittest
 from pathlib import Path
@@ -41,6 +42,21 @@ class StoreTests(unittest.TestCase):
             store.update_item(task["id"], {"source": "forged"})
         self.assertEqual(store.get_item(task["id"])["title"], "원래 제목")
         self.assertEqual(len(store.list_items()), 1)
+
+    def test_backup_import_is_idempotent_and_atomic(self):
+        first = store.create_item({"title": "되찾을 생각", "kind": "idea", "details": "원본 메모"})
+        backup = {"format": "todotodo-v1", "items": store.list_items()}
+        store.delete_item(first["id"])
+        self.assertEqual(store.import_items(backup), {"imported": 1, "skipped": 0})
+        self.assertEqual(store.get_item(first["id"]), first)
+        self.assertEqual(store.import_items(backup), {"imported": 0, "skipped": 1})
+
+        invalid = copy.deepcopy(backup)
+        invalid["items"][0]["id"] = "a" * 32
+        invalid["items"].append({**invalid["items"][0], "id": "b" * 32, "date": "2026-02-30"})
+        with self.assertRaises(ValueError):
+            store.import_items(invalid)
+        self.assertEqual(store.list_items(), [first])
 
 
 if __name__ == "__main__":

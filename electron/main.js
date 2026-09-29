@@ -195,7 +195,7 @@ function agentExecutable() {
 }
 
 async function requestAPI(endpoint, method = 'GET', body = null) {
-  if (typeof endpoint !== 'string' || !/^\/api\/(items(?:\/[a-f0-9]{32})?|brief|export)(?:\?[\w%=&+.-]*)?$/.test(endpoint)) throw new Error('허용되지 않은 경로입니다.');
+  if (typeof endpoint !== 'string' || !/^\/api\/(items(?:\/[a-f0-9]{32})?|brief|export|import)(?:\?[\w%=&+.-]*)?$/.test(endpoint)) throw new Error('허용되지 않은 경로입니다.');
   if (!['GET', 'POST', 'PATCH', 'DELETE'].includes(method)) throw new Error('허용되지 않은 요청입니다.');
   const response = await fetch(baseURL + endpoint, {
     method, headers: {'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json'},
@@ -344,6 +344,24 @@ else {
       const data = await requestAPI('/api/export');
       fs.writeFileSync(result.filePath, JSON.stringify(data, null, 2));
       return true;
+    });
+    ipcMain.handle('todo:import', async event => {
+      verifySender(event);
+      const selection = await dialog.showOpenDialog(window, {title: 'TodoTodo 백업 가져오기', properties: ['openFile'], filters: [{name: 'JSON', extensions: ['json']} ]});
+      if (selection.canceled || !selection.filePaths[0]) return null;
+      const file = selection.filePaths[0];
+      if ((await fs.promises.stat(file)).size > 20_000_000) throw new Error('20MB 이하의 백업 파일만 가져올 수 있습니다.');
+      let data;
+      try {data = JSON.parse(await fs.promises.readFile(file, 'utf8'));}
+      catch {throw new Error('JSON 백업 파일을 읽을 수 없습니다.');}
+      if (data?.format !== 'todotodo-v1' || !Array.isArray(data.items)) throw new Error('TodoTodo v1 백업 파일이 아닙니다.');
+      const choice = await dialog.showMessageBox(window, {
+        type: 'question', title: '백업 가져오기', message: `${data.items.length}개 항목을 가져올까요?`,
+        detail: '기존 기록은 그대로 두고, 같은 항목은 건너뜁니다.',
+        buttons: ['가져오기', '취소'], defaultId: 1, cancelId: 1, noLink: true
+      });
+      if (choice.response !== 0) return null;
+      return requestAPI('/api/import', 'POST', data);
     });
     createWindow();
     screen.on('display-metrics-changed', keepWindowVisible);

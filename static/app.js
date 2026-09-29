@@ -1,5 +1,5 @@
 const $ = selector => document.querySelector(selector);
-const state = {items: [], view: 'home', scope: 'all', taskFilter: 'open', search: '', editing: null, month: new Date(), selectedDay: localDate(new Date())};
+const state = {items: [], view: 'home', scope: 'all', taskFilter: 'open', editing: null, month: new Date(), selectedDay: localDate(new Date())};
 let desktopCompact = false;
 const kindName = {task: '할 일', event: '일정', idea: '아이디어'};
 const scopeName = {work: '업무', personal: '개인'};
@@ -28,7 +28,7 @@ async function api(path, options = {}) {
   return body;
 }
 async function refresh() {
-  try { state.items = await api('/api/items'); render(); }
+  try { state.items = await api('/api/items'); render(); if ($('#search-dialog').open) renderSearch(); }
   catch (error) { toast(error.message); }
 }
 function scoped(items) { return state.scope === 'all' ? items : items.filter(item => item.scope === state.scope); }
@@ -68,15 +68,34 @@ function renderCompact(items) {
 }
 function renderTasks(items) {
   let results = items.filter(item => item.kind === 'task');
-  if (state.search) results = items.filter(item => `${item.title} ${item.details} ${item.tags}`.toLowerCase().includes(state.search.toLowerCase()));
-  else if (state.taskFilter === 'open') results = openItems(results);
+  if (state.taskFilter === 'open') results = openItems(results);
   else if (state.taskFilter === 'done') results = results.filter(item => item.status === 'done');
-  $('#task-total').textContent = `${results.length}개 항목${state.search ? ` · “${state.search}” 검색` : ''}`;
-  $('#tasks-list').innerHTML = results.length ? results.map(item => row(item)).join('') : empty(state.search ? '검색 결과가 없어요.' : '아직 할 일이 없어요.<br>첫 번째 할 일을 추가해 보세요.');
+  $('#task-total').textContent = `${results.length}개 항목`;
+  $('#tasks-list').innerHTML = results.length ? results.map(item => row(item)).join('') : empty('아직 할 일이 없어요.<br>첫 번째 할 일을 추가해 보세요.');
 }
 function renderIdeas(items) {
   const ideas = items.filter(item => item.kind === 'idea').sort((a,b) => b.created_at.localeCompare(a.created_at));
   $('#ideas-grid').innerHTML = ideas.length ? ideas.map(item => `<article class="idea-card" data-edit="${item.id}" tabindex="0"><div class="idea-card-top"><span>✦</span><small>${formatDate(item.created_at.slice(0,10))}</small></div><h3>${escapeHTML(item.title)}</h3><p>${escapeHTML(item.details || '메모를 추가해 보세요.')}</p><div class="idea-card-footer">${scopeName[item.scope]} ${item.tags ? '· ' + escapeHTML(item.tags) : ''}</div></article>`).join('') : empty('아이디어를 자유롭게 기록해 보세요.<br>에이전트가 남긴 아이디어도 이곳에 모입니다.');
+}
+function renderSearch() {
+  const query = $('#search-input').value.trim().toLocaleLowerCase();
+  const rank = item => item.title.toLocaleLowerCase().startsWith(query) ? 0 : item.title.toLocaleLowerCase().includes(query) ? 1 : item.tags.toLocaleLowerCase().includes(query) ? 2 : 3;
+  const matches = query
+    ? state.items.filter(item => `${item.title} ${item.details} ${item.tags}`.toLocaleLowerCase().includes(query)).sort((a,b) => rank(a) - rank(b) || b.updated_at.localeCompare(a.updated_at))
+    : [...state.items].sort((a,b) => b.updated_at.localeCompare(a.updated_at)).slice(0,5);
+  $('#search-count').textContent = query ? `${matches.length}개 결과${matches.length > 30 ? ' · 처음 30개 표시' : ''}` : '최근 기록';
+  $('#search-results').innerHTML = matches.length ? matches.slice(0,30).map(item => {
+    const preview = item.details?.replace(/\s+/g,' ').slice(0,120) || (item.date ? `${formatDate(item.date)} ${item.time || ''}` : '메모 없음');
+    return `<button class="search-result" data-search-edit="${item.id}"><span>${kindName[item.kind]} · ${scopeName[item.scope]}${item.status === 'done' ? ' · 완료' : ''}${item.tags ? ` · ${escapeHTML(item.tags.slice(0,60))}` : ''}</span><strong>${escapeHTML(item.title)}</strong><small>${escapeHTML(preview)}</small></button>`;
+  }).join('') : `<div class="search-empty">${query ? '맞는 기록이 없어요. 다른 단어로 찾아보세요.' : '아직 기록이 없어요. 먼저 한 장 적어보세요.'}</div>`;
+}
+async function openSearch() {
+  if ($('#editor').open || $('#ai-result').open) return;
+  if (desktopCompact) await toggleCompact(false);
+  if (!$('#search-dialog').open) $('#search-dialog').showModal();
+  renderSearch();
+  $('#search-input').focus();
+  $('#search-input').select();
 }
 function renderCalendar(items) {
   const month = state.month.getMonth(), year = state.month.getFullYear();
@@ -94,7 +113,7 @@ function renderCalendar(items) {
   $('#selected-day-list').innerHTML = dayItems.length ? dayItems.map(item => row(item,false)).join('') : empty('이날의 일정이 없어요.');
 }
 function setView(view) {
-  state.view = view; state.search = view === 'tasks' ? state.search : '';
+  state.view = view;
   document.querySelectorAll('.view').forEach(el => el.classList.toggle('active', el.id === `${view}-view`));
   document.querySelectorAll('.nav-item').forEach(el => el.classList.toggle('active', el.dataset.view === view));
   $('#breadcrumb-current').textContent = {home:'오늘',tasks:'할 일',calendar:'캘린더',ideas:'아이디어 보관함',connect:'에이전트 연결'}[view];
@@ -115,7 +134,7 @@ document.addEventListener('click', async event => {
   const view = event.target.closest('[data-view]'); if (view) return setView(view.dataset.view);
   const create = event.target.closest('[data-new]'); if (create) return openEditor(create.dataset.new);
   const scope = event.target.closest('[data-scope]'); if (scope) {state.scope = scope.dataset.scope; document.querySelectorAll('[data-scope]').forEach(el => el.classList.toggle('selected',el === scope)); return render();}
-  const filter = event.target.closest('[data-filter]'); if (filter) {state.taskFilter = filter.dataset.filter; state.search = ''; document.querySelectorAll('[data-filter]').forEach(el => el.classList.toggle('selected',el === filter)); return render();}
+  const filter = event.target.closest('[data-filter]'); if (filter) {state.taskFilter = filter.dataset.filter; document.querySelectorAll('[data-filter]').forEach(el => el.classList.toggle('selected',el === filter)); return render();}
   const day = event.target.closest('[data-day]'); if (day) {state.selectedDay = day.dataset.day; return render();}
   const compactEdit = event.target.closest('[data-compact-edit]'); if (compactEdit) {
     const item = state.items.find(entry => entry.id === compactEdit.dataset.compactEdit);
@@ -167,11 +186,41 @@ $('#compact-form').onsubmit = async event => {
   try {await api('/api/items',{method:'POST',body:JSON.stringify({title,kind:'task',scope:state.scope === 'all' ? 'personal' : state.scope,date:localDate(new Date())})}); input.value = ''; await refresh(); toast('오늘 페이지에 적었어요.');}
   catch(error) {toast(error.message);}
 };
-$('#search-button').onclick = () => {const query = prompt('제목, 메모, 태그에서 검색',state.search); if (query === null) return; state.search = query.trim(); setView('tasks'); render();};
+$('#search-button').onclick = openSearch;
+$('#close-search').onclick = () => $('#search-dialog').close();
+$('#search-input').oninput = renderSearch;
+$('#search-input').onkeydown = event => {
+  if (event.key === 'Enter') {event.preventDefault(); $('#search-results .search-result')?.click();}
+  if (event.key === 'ArrowDown') {event.preventDefault(); $('#search-results .search-result')?.focus();}
+};
+$('#search-results').onclick = event => {
+  const button = event.target.closest('[data-search-edit]');
+  if (!button) return;
+  const item = state.items.find(entry => entry.id === button.dataset.searchEdit);
+  $('#search-dialog').close();
+  if (item) openEditor(item.kind, item);
+};
 $('#copy-command').onclick = async () => {try {await navigator.clipboard.writeText($('#mcp-command').textContent); toast('설정을 복사했습니다.');} catch {toast('복사할 수 없습니다. 내용을 직접 선택해 주세요.');}};
 $('#export-button').onclick = async () => {
   try {if (window.todoDesktop) {if (await window.todoDesktop.export()) toast('백업을 저장했습니다.'); return;} const data = await api('/api/export'); const url = URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'})); const link = document.createElement('a'); link.href = url; link.download = `todotodo-backup-${localDate(new Date())}.json`; link.click(); setTimeout(() => URL.revokeObjectURL(url),1000);}
   catch(error) {toast(error.message);}
+};
+$('#import-button').onclick = async () => {
+  if (!window.todoDesktop) return $('#import-file').click();
+  try {
+    const result = await window.todoDesktop.importBackup();
+    if (result) {await refresh(); toast(`${result.imported}개 가져옴 · ${result.skipped}개 중복`);}
+  } catch(error) {toast(error.message);}
+};
+$('#import-file').onchange = async event => {
+  const file = event.target.files[0]; event.target.value = '';
+  if (!file) return;
+  try {
+    if (file.size > 20_000_000) throw new Error('20MB 이하의 백업 파일만 가져올 수 있습니다.');
+    const data = JSON.parse(await file.text());
+    const result = await api('/api/import',{method:'POST',body:JSON.stringify(data)});
+    await refresh(); toast(`${result.imported}개 가져옴 · ${result.skipped}개 중복`);
+  } catch(error) {toast(error.message);}
 };
 async function initializeDesktop() {
   if (!window.todoDesktop) return;
@@ -244,6 +293,7 @@ $('#close-ai-result').onclick = $('#done-ai-result').onclick = () => $('#ai-resu
 $('#copy-ai-result').onclick = async () => {try {await navigator.clipboard.writeText($('#ai-result-text').textContent); toast('내용을 복사했습니다.');} catch {toast('복사할 수 없습니다.');}};
 document.addEventListener('keydown', event => {if (event.key === 'Enter' && event.target.matches('.idea-card')) openEditor('idea',state.items.find(item => item.id === event.target.dataset.edit));});
 document.addEventListener('keydown', event => {
+  if (event.ctrlKey && event.key.toLowerCase() === 'k') {event.preventDefault(); openSearch();}
   if (window.todoDesktop && event.ctrlKey && event.shiftKey && event.key.toLowerCase() === 'm') {event.preventDefault(); toggleCompact();}
   if (!desktopCompact && event.ctrlKey && event.key.toLowerCase() === 'n') {event.preventDefault(); openEditor();}
 });

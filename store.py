@@ -16,6 +16,7 @@ SCOPES = {"work", "personal"}
 STATUSES = {"todo", "doing", "done"}
 PRIORITIES = {"low", "normal", "high"}
 FIELDS = {"title", "details", "kind", "scope", "status", "priority", "date", "time", "tags"}
+BACKUP_FIELDS = FIELDS | {"id", "source", "created_at", "updated_at"}
 
 
 @contextmanager
@@ -149,6 +150,39 @@ def update_item(item_id, data):
 def delete_item(item_id):
     with connection() as db:
         return db.execute("DELETE FROM items WHERE id = ?", (item_id,)).rowcount > 0
+
+
+def import_items(backup):
+    if not isinstance(backup, dict) or backup.get("format") != "todotodo-v1" or not isinstance(backup.get("items"), list):
+        raise ValueError("TodoTodo v1 백업 파일이 아닙니다.")
+    items = backup["items"]
+    if len(items) > 10000:
+        raise ValueError("한 번에 10,000개 이하의 항목만 가져올 수 있습니다.")
+    for item in items:
+        if not isinstance(item, dict) or set(item) != BACKUP_FIELDS:
+            raise ValueError("백업 항목의 필드가 올바르지 않습니다.")
+        if any(not isinstance(item[key], str) for key in BACKUP_FIELDS):
+            raise ValueError("백업 항목의 값이 올바르지 않습니다.")
+        if not re.fullmatch(r"[a-f0-9]{32}", item["id"]):
+            raise ValueError("백업 항목의 ID가 올바르지 않습니다.")
+        if not 1 <= len(item["source"]) <= 100:
+            raise ValueError("백업 항목의 출처가 올바르지 않습니다.")
+        for key in ("created_at", "updated_at"):
+            try:
+                parsed = datetime.fromisoformat(item[key])
+                if parsed.tzinfo is None:
+                    raise ValueError()
+            except ValueError as exc:
+                raise ValueError("백업 항목의 시간이 올바르지 않습니다.") from exc
+        validate({key: item[key] for key in FIELDS})
+
+    imported = 0
+    with connection() as db:
+        for item in items:
+            result = db.execute("""INSERT OR IGNORE INTO items VALUES
+                (:id,:title,:details,:kind,:scope,:status,:priority,:date,:time,:tags,:source,:created_at,:updated_at)""", item)
+            imported += result.rowcount
+    return {"imported": imported, "skipped": len(items) - imported}
 
 
 def day_brief(day=None, scope=None):

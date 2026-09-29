@@ -6,7 +6,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
-from store import create_item, day_brief, delete_item, init_db, list_items, update_item
+from store import create_item, day_brief, delete_item, import_items, init_db, list_items, update_item
 
 STATIC = Path(__file__).with_name("static")
 FILES = {"/": ("index.html", "text/html; charset=utf-8"),
@@ -28,11 +28,11 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(raw)
 
-    def read_json(self):
+    def read_json(self, max_length=20000):
         if self.headers.get("Content-Type", "").split(";")[0].strip().lower() != "application/json":
             raise ValueError("Content-Type은 application/json이어야 합니다.")
         length = int(self.headers.get("Content-Length", "0"))
-        if length < 1 or length > 20000:
+        if length < 1 or length > max_length:
             raise ValueError("요청 크기가 올바르지 않습니다.")
         try:
             return json.loads(self.rfile.read(length))
@@ -59,6 +59,8 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_data(200, day_brief(**params))
         if path == "/api/export" and self.command == "GET":
             return self.send_data(200, {"format": "todotodo-v1", "items": list_items()})
+        if path == "/api/import" and self.command == "POST":
+            return self.send_data(200, import_items(self.read_json(20_000_000)))
         if path.startswith("/api/items/"):
             item_id = path.removeprefix("/api/items/")
             if not item_id or "/" in item_id:

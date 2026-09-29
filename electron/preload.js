@@ -5,6 +5,7 @@ contextBridge.exposeInMainWorld('todoDesktop', {
   state: () => ipcRenderer.invoke('todo:state'),
   setting: (key, value) => ipcRenderer.invoke('todo:setting', key, value),
   export: () => ipcRenderer.invoke('todo:export'),
+  importBackup: () => ipcRenderer.invoke('todo:import'),
   aiStatus: () => ipcRenderer.invoke('todo:ai-status'),
   aiKey: (provider, key) => ipcRenderer.invoke('todo:ai-key', provider, key),
   aiBrief: (provider, scope) => ipcRenderer.invoke('todo:ai-brief', provider, scope),

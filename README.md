@@ -22,6 +22,8 @@ TodoTodo는 책상 한쪽에 놓아두는 작은 수첩 같은 Windows 앱입니
 
 기본 Windows 제목 표시줄 없이 앱 위쪽의 작은 손잡이로 창을 움직입니다. 창 고정과 투명도(45–100%)를 조절할 수 있습니다. 시간이 있는 일정은 정각 또는 5·10·30분 전에 알림을 보냅니다. 모니터를 옮기거나 해상도가 바뀌면 창을 화면 안으로 맞춥니다. `Ctrl+Shift+M`으로 전체 창과 작은 메모를 전환할 수 있습니다.
 
+`Ctrl+K`를 누르면 업무·개인 공간의 할 일, 일정, 아이디어를 한 번에 찾을 수 있습니다.
+
 ## AI는 선택 사항이에요
 
 TodoTodo의 기록과 알림은 AI 없이 로컬에서 동작합니다. 연결이 필요할 때는 **연결 및 설정**에서 방법을 고르세요.
@@ -44,7 +46,7 @@ Claude Desktop에서는 **Settings → Extensions → Advanced settings → Inst
 
 Windows 배포 파일은 현재 코드 서명이 없습니다. 조직 PC에서는 실행 정책에 따라 차단될 수 있습니다. 배포 파일과 소스는 이 저장소의 릴리스에서 함께 확인할 수 있습니다.
 
-데이터는 `%APPDATA%\TodoTodo\todotodo.db`에 저장됩니다. **연결 및 설정 → JSON 백업 다운로드**로 내보낼 수 있습니다. 계정 동기화, 앱 종료 후 알림, 반복 일정은 아직 없습니다.
+데이터는 `%APPDATA%\TodoTodo\todotodo.db`에 저장됩니다. **연결 및 설정**에서 JSON 백업을 내보내거나 가져올 수 있습니다. 가져오기는 기존 기록을 유지하고 중복 항목을 건너뜁니다. 계정 동기화, 앱 종료 후 알림, 반복 일정은 아직 없습니다.
 
 ## 개발자를 위한 실행 방법
 
@@ -57,7 +59,7 @@ npm start
 
 웹 화면만 실행하려면 `python app.py` 후 <http://127.0.0.1:8765>를 여세요. 소스 실행 시 기본 데이터 파일은 프로젝트 폴더의 `todotodo.db`입니다. `TODOTODO_DB`로 경로를 바꿀 수 있습니다.
 
-MCP 서버만 실행하려면 `uv run python mcp_server.py`를 stdio 서버로 등록하세요. 도구는 `list_entries`, `get_entry`, `capture_entry`, `revise_entry`, `mark_done`, `get_daily_brief`입니다. 웹 API는 `GET/POST /api/items`, `PATCH/DELETE /api/items/{id}`, `GET /api/brief`, `GET /api/export`를 제공합니다.
+MCP 서버만 실행하려면 `uv run python mcp_server.py`를 stdio 서버로 등록하세요. 도구는 `list_entries`, `get_entry`, `capture_entry`, `revise_entry`, `mark_done`, `get_daily_brief`입니다. 웹 API는 `GET/POST /api/items`, `PATCH/DELETE /api/items/{id}`, `GET /api/brief`, `GET /api/export`, `POST /api/import`를 제공합니다.
 
 ```bash
 npm run check
