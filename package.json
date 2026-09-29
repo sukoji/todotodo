@@ -1,0 +1,14 @@
+{
+  "name": "todotodo-desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Desktop tasks, schedule and ideas with MCP integration",
+  "main": "electron/main.js",
+  "scripts": {
+    "start": "electron .",
+    "check": "node --check electron/main.js && node --check electron/preload.js && node --check static/app.js && uv run python -m unittest discover -s tests -v"
+  },
+  "devDependencies": {
+    "electron": "^44.4.5"
+  }
+}

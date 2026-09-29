@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'">
+  <meta name="theme-color" content="#f7f7f3">
+  <title>TodoTodo — 생각을 실행으로</title>
+  <link rel="stylesheet" href="./styles.css">
+  <link rel="stylesheet" href="./theme.css">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand"><img class="brand-logo" src="./logo.svg" alt="" width="43" height="43"><div><strong>todotodo</strong><small>생각이 자라는 작은 책상</small></div></div>
+      <div class="workspace"><span class="workspace-avatar">나</span><span><strong>나의 공간</strong><small>일과 삶을 한곳에</small></span><span class="chevron">⌄</span></div>
+      <div class="nav-label">나의 하루</div>
+      <nav aria-label="주 메뉴">
+        <button class="nav-item active" data-view="home"><span>◫</span> 오늘 <b id="today-count">0</b></button>
+        <button class="nav-item" data-view="tasks"><span>☑</span> 할 일</button>
+        <button class="nav-item" data-view="calendar"><span>▦</span> 캘린더</button>
+        <button class="nav-item" data-view="ideas"><span>✦</span> 아이디어 보관함</button>
+      </nav>
+      <div class="nav-label nav-label-second">공간별로 보기</div>
+      <div class="scope-nav"><button class="scope-item selected" data-scope="all"><i class="scope-dot all"></i> 전체 보기</button><button class="scope-item" data-scope="work"><i class="scope-dot work"></i> 업무</button><button class="scope-item" data-scope="personal"><i class="scope-dot personal"></i> 개인</button></div>
+      <div class="sidebar-bottom"><div class="agent-card"><span class="agent-spark">✎</span><strong>작은 생각도 놓치지 않게</strong><p>메모 한 장처럼 가볍게 적어요.<br>에이전트도 함께 쓸 수 있어요.</p><button data-view="connect">에이전트 연결 <span>↗</span></button></div><button class="settings-link" data-view="connect">⚙ <span>연결 및 설정</span></button></div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar"><div class="breadcrumb">나의 공간 <span>/</span> <strong id="breadcrumb-current">오늘</strong></div><div class="top-actions"><span class="local-pill"><i></i> 내 기기에 저장 중</span><button class="pin-button desktop-only" id="pin-button" title="창을 맨 위에 고정" aria-label="창을 맨 위에 고정">◇ <span>창 고정</span></button><button class="icon-button" id="search-button" aria-label="검색">⌕</button><button class="avatar" data-view="connect" aria-label="설정">나</button></div></header>
+      <div class="content">
+        <section id="home-view" class="view active">
+          <div class="page-heading"><div><div class="eyebrow" id="today-label"></div><h1 id="greeting">오늘도 하나씩,</h1><p>머릿속 할 일을 책상 위에 꺼내 놓아요.</p></div><button class="primary-button" data-new="task"><span>＋</span> 새로 적기</button></div>
+          <div class="summary-grid"><div class="summary-card lilac"><div class="summary-icon">✓</div><span>오늘 할 일</span><strong id="stat-today">0</strong><small>하나씩 체크!</small></div><div class="summary-card peach"><div class="summary-icon">↗</div><span>진행 중</span><strong id="stat-doing">0</strong><small>조금씩 가는 중</small></div><div class="summary-card mint"><div class="summary-icon">✳</div><span>모아 둔 생각</span><strong id="stat-ideas">0</strong><small>생각의 씨앗들</small></div></div>
+          <div class="home-grid"><div class="panel"><div class="panel-heading"><div><span class="mini-label">TODAY'S PAGE</span><h2>오늘의 페이지</h2></div><button class="text-button" data-view="calendar">달력 펼치기 ↗</button></div><div id="today-list" class="item-list"></div></div><div class="right-stack"><div class="capture-card"><div class="capture-icon">✳</div><h2>앗, 생각났다!</h2><p>아직 모양이 없어도 괜찮아요.<br>일단 여기 붙여 두어요.</p><button data-new="idea">생각 한 장 붙이기 <span>↗</span></button></div><div class="panel compact-panel"><div class="panel-heading"><div><span class="mini-label">COMING SOON</span><h2>다음 페이지에</h2></div></div><div id="upcoming-list" class="item-list"></div></div></div></div>
+        </section>
+
+        <section id="tasks-view" class="view"><div class="page-heading"><div><div class="eyebrow">차근차근, 하나씩</div><h1>할 일</h1><p>할 일을 적어두면 마음이 한결 가벼워져요.</p></div><button class="primary-button" data-new="task">＋ 새 할 일</button></div><div class="toolbar"><div class="segmented" id="task-filters"><button class="selected" data-filter="open">진행 중</button><button data-filter="all">전체</button><button data-filter="done">완료</button></div><span id="task-total" class="muted-count"></span></div><div class="panel list-panel" id="tasks-list"></div></section>
+
+        <section id="calendar-view" class="view"><div class="page-heading"><div><div class="eyebrow">한 달을 한눈에</div><h1>캘린더</h1><p>약속과 할 일을 달력에 나란히 놓아요.</p></div><button class="primary-button" data-new="event">＋ 일정 추가</button></div><div class="calendar-layout"><div class="panel calendar-panel"><div class="calendar-heading"><div><button class="icon-button" id="prev-month" aria-label="이전 달">‹</button><h2 id="calendar-month"></h2><button class="icon-button" id="next-month" aria-label="다음 달">›</button></div><button class="subtle-button" id="go-today">오늘</button></div><div class="weekday-row"><span>일</span><span>월</span><span>화</span><span>수</span><span>목</span><span>금</span><span>토</span></div><div id="calendar-grid" class="calendar-grid"></div></div><div class="panel calendar-day-panel"><div class="mini-label">고른 날짜</div><h2 id="selected-day-title"></h2><div id="selected-day-list" class="item-list"></div><button class="add-link" data-new="event">＋ 이 날짜에 일정 추가</button></div></div></section>
+
+        <section id="ideas-view" class="view"><div class="page-heading"><div><div class="eyebrow">생각을 붙여두는 곳</div><h1>아이디어 보관함</h1><p>완성되지 않은 생각도 여기서는 환영이에요.</p></div><button class="primary-button" data-new="idea">＋ 생각 붙이기</button></div><div class="idea-intro"><span>✳</span><div><strong>모든 계획은 작은 낙서에서 시작할지도 몰라요.</strong><p>에이전트가 발견한 생각도 여기에 모을 수 있어요.</p></div></div><div id="ideas-grid" class="ideas-grid"></div></section>
+
+        <section id="connect-view" class="view"><div class="page-heading"><div><div class="eyebrow">나만의 작업 책상</div><h1>연결 및 설정</h1><p>창의 모습과 에이전트 연결을 내 방식에 맞춰요.</p></div></div><div class="connect-layout"><div class="panel connect-panel desktop-only" id="desktop-settings"><div class="connect-symbol">⚙</div><h2>데스크톱 설정</h2><p>창을 옆에 두고 쓰거나, 중요한 일정만 알림으로 받아보세요.</p><label class="setting-row"><span><strong>창 고정</strong><small>다른 창 위에 TodoTodo를 표시</small></span><input id="always-on-top" type="checkbox" role="switch"></label><label class="setting-row opacity-row"><span><strong>창 투명도</strong><small>다른 작업과 나란히 볼 때 조절</small></span><output id="opacity-value">100%</output></label><input id="opacity-slider" type="range" min="45" max="100" step="5" value="100" aria-label="창 투명도"><label class="setting-row"><span><strong>일정 알림</strong><small>시간이 있는 할 일과 일정만 알림</small></span><input id="notifications-enabled" type="checkbox" role="switch" checked></label><label class="setting-row"><span><strong>알림 시점</strong><small>일정 시작 전</small></span><select id="reminder-minutes"><option value="0">정각</option><option value="5">5분 전</option><option value="10" selected>10분 전</option><option value="30">30분 전</option></select></label></div><div class="panel connect-panel"><div class="connect-symbol">✳</div><h2>MCP로 에이전트 연결</h2><p>표준 MCP 서버로 할 일, 일정, 아이디어를 에이전트가 읽고 기록할 수 있습니다. 아래 명령을 클라이언트에 등록하세요.</p><div class="code-label">실행 명령</div><pre id="mcp-command">uv run --with "mcp&gt;=2,&lt;3" python mcp_server.py</pre><button class="subtle-button" id="copy-command">명령 복사</button><div class="tool-chips"><span>일정 조회</span><span>할 일 기록</span><span>아이디어 캡처</span><span>하루 브리핑</span><span>상태 변경</span></div></div><div class="panel connect-panel"><div class="connect-symbol violet">↗</div><h2>내 데이터, 내 기기에</h2><p>화면과 MCP 서버가 같은 SQLite 파일을 사용합니다. 데이터는 클라우드로 전송되지 않습니다.</p><button class="subtle-button" id="export-button">JSON 백업 다운로드 ↓</button><p class="connect-note">연동 설정 예시와 API 사용법은 프로젝트 README에 정리되어 있습니다.</p></div></div></section>
+      </div>
+    </main>
+  </div>
+
+  <dialog id="editor"><form id="editor-form" method="dialog"><div class="dialog-header"><div><span class="mini-label">CAPTURE & CREATE</span><h2 id="dialog-title">새 항목</h2></div><button type="button" class="dialog-close" id="close-dialog" aria-label="닫기">×</button></div><div class="type-row"><label><input type="radio" name="kind" value="task" checked><span>☑ 할 일</span></label><label><input type="radio" name="kind" value="event"><span>▦ 일정</span></label><label><input type="radio" name="kind" value="idea"><span>✦ 아이디어</span></label></div><label class="field">제목<input name="title" maxlength="200" required placeholder="무엇을 기록할까요?" autofocus></label><label class="field">메모<textarea name="details" rows="3" maxlength="10000" placeholder="관련 내용이나 생각을 자유롭게 적어주세요"></textarea></label><div class="field-row"><label class="field">날짜<input name="date" type="date"></label><label class="field">시간<input name="time" type="time"></label></div><div class="field-row"><label class="field">공간<select name="scope"><option value="personal">개인</option><option value="work">업무</option></select></label><label class="field">우선순위<select name="priority"><option value="normal">보통</option><option value="high">높음</option><option value="low">낮음</option></select></label></div><label class="field">태그<input name="tags" maxlength="500" placeholder="예: 프로젝트, 책, 주말"></label><div class="dialog-footer"><button type="button" class="danger-button" id="delete-button" hidden>삭제</button><span class="spacer"></span><button type="button" class="subtle-button" id="cancel-button">취소</button><button class="primary-button" type="submit">저장하기</button></div></form></dialog>
+  <div id="toast" role="status" aria-live="polite"></div>
+  <script src="./app.js"></script>
+</body>
+</html>

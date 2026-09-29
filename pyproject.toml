@@ -1,0 +1,9 @@
+[project]
+name = "todotodo-agentic"
+version = "0.1.0"
+description = "Local-first tasks, schedule, and ideas with MCP agent integration"
+requires-python = ">=3.10"
+dependencies = ["mcp>=2,<3"]
+
+[tool.setuptools]
+py-modules = ["app", "store", "mcp_server"]
