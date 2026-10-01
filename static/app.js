@@ -11,6 +11,7 @@ let compactSaving = false;
 let pendingAppClose = false;
 let pendingReminderId = null;
 let editorDraftKind = 'task';
+let editorDefaultDate = '';
 let searchLimit = 30;
 let taskLimit = 50;
 let compactLimit = 30;
@@ -397,7 +398,7 @@ function saveEditorDraft() {
   draft.status = form.elements.status.value;
   const defaultScope = state.scope === 'all' ? 'personal' : state.scope;
   if (![draft.title, draft.details, draft.tags, draft.time, draft.end_time].some(value => value?.trim()) &&
-      (!draft.date || (kind === 'event' && draft.date === state.selectedDay)) &&
+      (!draft.date || draft.date === editorDefaultDate || (kind === 'event' && draft.date === state.selectedDay)) &&
       !draft.repeat && draft.scope === defaultScope && draft.priority === 'normal' && draft.status === 'todo') {
     clearEditorDraft(kind);
     return;
@@ -426,6 +427,7 @@ function restoreEditorDraft(kind) {
 function openEditor(kind = 'task', item = null) {
   state.editing = item;
   const form = $('#editor-form'); form.reset();
+  editorDefaultDate = !item && kind === 'task' && state.view === 'home' ? localDate(new Date()) : '';
   for (const key of ['date','time','end_time','repeat_until']) form.elements[key].setCustomValidity('');
   form.elements.kind.value = item?.kind || kind;
   form.querySelector('[name="kind"][value="idea"]').disabled = Boolean(item?.series_id);
@@ -433,6 +435,7 @@ function openEditor(kind = 'task', item = null) {
   for (const key of ['title','details','date','time','end_time','repeat','repeat_until','scope','priority','tags']) if (item) form.elements[key].value = item[key] || '';
   syncStatusField();
   if (!item && kind === 'event') form.elements.date.value = state.selectedDay;
+  if (editorDefaultDate) form.elements.date.value = editorDefaultDate;
   if (!item && state.scope !== 'all') form.elements.scope.value = state.scope;
   editorDraftKind = form.elements.kind.value;
   $('#editor-draft-notice').hidden = Boolean(item);
@@ -630,8 +633,12 @@ $('#editor-form').addEventListener('submit', async event => {
 });
 document.querySelectorAll('#editor-form input[name="kind"]').forEach(input => {input.onchange = () => {
   if (!state.editing && editorDraftKind !== input.value) {
+    const previousKind = editorDraftKind;
     editorDraftKind = input.value;
-    restoreEditorDraft(input.value);
+    const restored = restoreEditorDraft(input.value);
+    const date = $('#editor-form').elements.date;
+    if (!restored && previousKind === 'task' && input.value === 'idea' && date.value === editorDefaultDate) date.value = '';
+    if (!restored && input.value === 'task' && editorDefaultDate && !date.value) date.value = editorDefaultDate;
   }
   syncStatusField(); syncRepeatField(); syncFutureOption(); syncDateShortcuts(); renderEditorConflicts();
   saveEditorDraft();
@@ -654,6 +661,7 @@ $('#clear-editor-draft').onclick = () => {
   const form = $('#editor-form'); form.reset(); form.elements.kind.value = kind;
   for (const key of ['date','time','end_time','repeat_until']) form.elements[key].setCustomValidity('');
   if (kind === 'event') form.elements.date.value = state.selectedDay;
+  else if (kind === 'task' && editorDefaultDate) form.elements.date.value = editorDefaultDate;
   if (state.scope !== 'all') form.elements.scope.value = state.scope;
   $('#editor-draft-notice').hidden = true;
   syncStatusField(); syncRepeatField(); syncDateShortcuts(); renderEditorConflicts();
