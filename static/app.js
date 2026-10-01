@@ -159,6 +159,16 @@ function syncStatusField() {
   $('#task-status-field').hidden = !task;
   document.querySelectorAll('#task-status-field input').forEach(input => {input.disabled = !task;});
 }
+function shortcutDate(key) {
+  if (key === 'clear') return '';
+  const day = new Date();
+  if (key === 'tomorrow') day.setDate(day.getDate() + 1);
+  return localDate(day);
+}
+function syncDateShortcuts() {
+  const value = $('#editor-form').elements.date.value;
+  document.querySelectorAll('[data-date-shortcut]').forEach(button => button.setAttribute('aria-pressed', String(value === shortcutDate(button.dataset.dateShortcut))));
+}
 function openEditor(kind = 'task', item = null) {
   state.editing = item;
   const form = $('#editor-form'); form.reset();
@@ -168,6 +178,7 @@ function openEditor(kind = 'task', item = null) {
   syncStatusField();
   if (!item && kind === 'event') form.elements.date.value = state.selectedDay;
   if (!item && state.scope !== 'all') form.elements.scope.value = state.scope;
+  syncDateShortcuts();
   $('#dialog-title').textContent = item ? '항목 수정' : '새 항목 만들기';
   $('#delete-button').hidden = !item;
   $('#editor').showModal();
@@ -221,6 +232,11 @@ document.addEventListener('click', async event => {
 $('#editor-form').addEventListener('submit', async event => {
   event.preventDefault();
   const form = event.currentTarget, data = Object.fromEntries(new FormData(form));
+  if (data.time && !data.date) {
+    form.elements.date.setCustomValidity('시간을 입력하려면 날짜를 먼저 선택하세요.');
+    form.elements.date.reportValidity();
+    return;
+  }
   try {
     const created = !state.editing;
     if (!created) data.expected_revision = state.editing.revision;
@@ -234,6 +250,10 @@ $('#editor-form').addEventListener('submit', async event => {
   } catch(error) {if (error.status === 409) showConflict('save'); else toast(error.message);}
 });
 document.querySelectorAll('#editor-form input[name="kind"]').forEach(input => {input.onchange = syncStatusField;});
+document.querySelectorAll('[data-date-shortcut]').forEach(button => {
+  button.onclick = () => {const date = $('#editor-form').elements.date; date.value = shortcutDate(button.dataset.dateShortcut); date.setCustomValidity(''); syncDateShortcuts();};
+});
+$('#editor-form').elements.date.oninput = event => {event.target.setCustomValidity(''); syncDateShortcuts();};
 $('#close-dialog').onclick = $('#cancel-button').onclick = () => $('#editor').close();
 $('#delete-button').onclick = () => {if (!state.editing) return; $('#delete-item-title').textContent = state.editing.title; $('#delete-dialog').showModal();};
 $('#cancel-delete').onclick = () => $('#delete-dialog').close();
