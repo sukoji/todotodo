@@ -14,6 +14,8 @@ let editorDraftKind = 'task';
 let searchLimit = 30;
 let taskLimit = 50;
 let compactLimit = 30;
+let todayLimit = 12;
+let ideaLimit = 30;
 const editorDraftKey = 'todo-editor-drafts-v1';
 const kindName = {task: '할 일', event: '일정', idea: '아이디어'};
 const scopeName = {work: '업무', personal: '개인'};
@@ -102,7 +104,10 @@ function render() {
     $('#stat-doing').textContent = items.filter(item => item.kind === 'task' && item.status === 'doing').length;
     $('#stat-ideas').textContent = openIdeas.length;
     const todayList = [...dueToday].sort((a,b) => (a.time || '99:99').localeCompare(b.time || '99:99'));
-    $('#today-list').innerHTML = todayList.length ? todayList.map(item => row(item, false)).join('') : empty('오늘 예정된 항목이 없어요.<br>새로운 하루를 계획해 보세요.');
+    const todayShown = Math.min(todayLimit, todayList.length);
+    $('#today-list').innerHTML = todayList.length ? todayList.slice(0,todayShown).map(item => row(item, false)).join('') : empty('오늘 예정된 항목이 없어요.<br>새로운 하루를 계획해 보세요.');
+    $('#today-more').hidden = todayShown === todayList.length;
+    $('#today-more span').textContent = `${todayList.length-todayShown}개 남음`;
     const overdue = openItems(items.filter(item => item.kind === 'task' && item.date && item.date < today)).sort((a,b) => b.date.localeCompare(a.date));
     $('#overdue-section').hidden = overdue.length === 0;
     $('#overdue-count').textContent = `${overdue.length}개`;
@@ -174,7 +179,11 @@ function renderTasks(items) {
 }
 function renderIdeas(items) {
   const ideas = items.filter(item => item.kind === 'idea').sort((a,b) => b.created_at.localeCompare(a.created_at));
-  $('#ideas-grid').innerHTML = ideas.length ? ideas.map(item => `<article class="idea-card" data-edit="${item.id}" role="button" tabindex="0" aria-label="${escapeHTML(item.title)} 수정"><div class="idea-card-top"><span>✦</span><small>${formatDate(item.created_at.slice(0,10))}</small></div><h3>${escapeHTML(item.title)}</h3><p>${escapeHTML(item.details || '메모를 추가해 보세요.')}</p><div class="idea-card-footer">${scopeName[item.scope]} ${item.tags ? '· ' + escapeHTML(item.tags) : ''}</div></article>`).join('') : empty('아이디어를 자유롭게 기록해 보세요.<br>에이전트가 남긴 아이디어도 이곳에 모입니다.');
+  const shown = Math.min(ideaLimit, ideas.length);
+  $('#ideas-total').textContent = `${ideas.length}개 메모${shown < ideas.length ? ` · ${shown}개 표시` : ''}`;
+  $('#ideas-grid').innerHTML = ideas.length ? ideas.slice(0,shown).map(item => `<article class="idea-card" data-edit="${item.id}" role="button" tabindex="0" aria-label="${escapeHTML(item.title)} 수정"><div class="idea-card-top"><span>✦</span><small>${formatDate(item.created_at.slice(0,10))}</small></div><h3>${escapeHTML(item.title)}</h3><p>${escapeHTML(item.details || '메모를 추가해 보세요.')}</p><div class="idea-card-footer">${scopeName[item.scope]} ${item.tags ? '· ' + escapeHTML(item.tags) : ''}</div></article>`).join('') : empty('아이디어를 자유롭게 기록해 보세요.<br>에이전트가 남긴 아이디어도 이곳에 모입니다.');
+  $('#ideas-more').hidden = shown === ideas.length;
+  $('#ideas-more span').textContent = `${ideas.length-shown}개 남음`;
 }
 function renderSearch() {
   const focusedId = document.activeElement?.dataset.searchEdit;
@@ -499,8 +508,10 @@ document.addEventListener('click', async event => {
   const view = event.target.closest('[data-view]'); if (view) return setView(view.dataset.view);
   const create = event.target.closest('[data-new]'); if (create) return openEditor(create.dataset.new);
   if (event.target.closest('#overdue-all')) {setView('tasks'); setTaskFilter('overdue'); document.querySelector('[data-filter="overdue"]').focus(); return;}
-  const scope = event.target.closest('[data-scope]'); if (scope) {state.scope = scope.dataset.scope; taskLimit = 50; if (state.scope !== 'all') {$('#compact-scope').value = state.scope; syncCompactDraftIndicator();} document.querySelectorAll('[data-scope]').forEach(el => {const selected = el === scope; el.classList.toggle('selected', selected); el.setAttribute('aria-pressed', String(selected));}); return render();}
+  const scope = event.target.closest('[data-scope]'); if (scope) {state.scope = scope.dataset.scope; taskLimit = 50; todayLimit = 12; ideaLimit = 30; if (state.scope !== 'all') {$('#compact-scope').value = state.scope; syncCompactDraftIndicator();} document.querySelectorAll('[data-scope]').forEach(el => {const selected = el === scope; el.classList.toggle('selected', selected); el.setAttribute('aria-pressed', String(selected));}); return render();}
   const filter = event.target.closest('[data-filter]'); if (filter) return setTaskFilter(filter.dataset.filter);
+  if (event.target.closest('#today-more')) {const previous = $('#today-list').querySelectorAll('.item-row').length; todayLimit += 12; render(); ($('#today-list').querySelectorAll('.item-row')[previous]?.querySelector('[data-edit]') || $('#today-more'))?.focus(); return;}
+  if (event.target.closest('#ideas-more')) {const previous = $('#ideas-grid').querySelectorAll('.idea-card').length; ideaLimit += 30; render(); ($('#ideas-grid').querySelectorAll('.idea-card')[previous] || $('#ideas-more'))?.focus(); return;}
   if (event.target.closest('#task-more')) {const previous = $('#tasks-list').querySelectorAll('.item-row').length; taskLimit += 50; render(); ($('#tasks-list').querySelectorAll('.item-row')[previous]?.querySelector('[data-edit]') || $('#task-more'))?.focus(); return;}
   if (event.target.closest('#compact-more')) {const previous = $('#compact-list').querySelectorAll('.compact-row').length; compactLimit += 30; renderCompact(state.items); ($('#compact-list').querySelectorAll('.compact-row')[previous]?.querySelector('.compact-title') || $('#compact-more'))?.focus(); return;}
   const day = event.target.closest('[data-day]'); if (day) return selectCalendarDay(day.dataset.day);
