@@ -52,7 +52,7 @@ function row(item, showDate = true) {
 function empty(message) { return `<div class="empty-state"><img class="empty-illustration" src="./empty.svg" alt="">${message}</div>`; }
 function render() {
   const focused = document.activeElement;
-  const focusType = focused?.dataset.edit ? 'edit' : focused?.dataset.complete ? 'complete' : focused?.dataset.compactEdit ? 'compact-edit' : null;
+  const focusType = focused?.dataset.edit ? 'edit' : focused?.dataset.complete ? 'complete' : focused?.dataset.compactEdit ? 'compact-edit' : focused?.dataset.day === state.selectedDay ? 'day' : null;
   const focusId = focusType && focused.dataset[focusType === 'compact-edit' ? 'compactEdit' : focusType];
   const focusArea = focused?.closest('.view, .compact-shell');
   const items = scoped(state.items), today = localDate(new Date());
@@ -150,18 +150,31 @@ function renderCalendar(items) {
     const current = new Date(year, month, index-first+1), day = localDate(current);
     const matches = byDate.get(day) || [];
     const label = dayFormat.format(current);
-    return `<button class="calendar-day ${current.getMonth() !== month ? 'outside' : ''} ${day === state.selectedDay ? 'selected' : ''} ${day === localDate(new Date()) ? 'today' : ''}" data-day="${day}" aria-label="${label}, ${matches.length}개 항목" aria-pressed="${day === state.selectedDay}"><span class="day-number">${current.getDate()}</span>${matches.slice(0,2).map(item => `<span class="calendar-dot ${item.kind === 'event' ? 'event' : ''}">${escapeHTML(item.title)}</span>`).join('')}${matches.length > 2 ? `<span class="calendar-more">+${matches.length-2}개 더</span>` : ''}</button>`;
+    return `<button class="calendar-day ${current.getMonth() !== month ? 'outside' : ''} ${day === state.selectedDay ? 'selected' : ''} ${day === localDate(new Date()) ? 'today' : ''}" data-day="${day}" tabindex="${day === state.selectedDay ? 0 : -1}" aria-label="${label}, ${matches.length}개 항목" aria-pressed="${day === state.selectedDay}"><span class="day-number">${current.getDate()}</span>${matches.slice(0,2).map(item => `<span class="calendar-dot ${item.kind === 'event' ? 'event' : ''}">${escapeHTML(item.title)}</span>`).join('')}${matches.length > 2 ? `<span class="calendar-more">+${matches.length-2}개 더</span>` : ''}</button>`;
   }).join('');
   const selected = new Date(`${state.selectedDay}T12:00:00`);
   $('#selected-day-title').textContent = new Intl.DateTimeFormat('ko-KR',{month:'long',day:'numeric',weekday:'long'}).format(selected);
   const dayItems = [...(byDate.get(state.selectedDay) || [])].sort((a,b) => a.time.localeCompare(b.time));
   $('#selected-day-list').innerHTML = dayItems.length ? dayItems.map(item => row(item,false)).join('') : empty('이날의 일정이 없어요.');
 }
+function selectCalendarDay(day) {
+  const selected = new Date(`${day}T12:00:00`);
+  state.month = new Date(selected.getFullYear(), selected.getMonth(), 1);
+  state.selectedDay = day;
+  state.preferredDay = selected.getDate();
+  renderCalendar(scoped(state.items));
+  $('#calendar-grid .calendar-day.selected')?.focus();
+}
 function setView(view) {
   state.view = view;
   document.querySelectorAll('.view').forEach(el => el.classList.toggle('active', el.id === `${view}-view`));
-  document.querySelectorAll('.nav-item').forEach(el => el.classList.toggle('active', el.dataset.view === view));
+  document.querySelectorAll('.nav-item, .settings-link').forEach(el => {
+    const active = el.dataset.view === view;
+    el.classList.toggle('active', active);
+    if (active) el.setAttribute('aria-current', 'page'); else el.removeAttribute('aria-current');
+  });
   $('#breadcrumb-current').textContent = {home:'오늘',tasks:'할 일',calendar:'캘린더',ideas:'아이디어 보관함',connect:'에이전트 연결'}[view];
+  window.scrollTo(0, 0);
 }
 function setTaskFilter(filter) {
   state.taskFilter = filter;
@@ -214,13 +227,7 @@ document.addEventListener('click', async event => {
   const create = event.target.closest('[data-new]'); if (create) return openEditor(create.dataset.new);
   const scope = event.target.closest('[data-scope]'); if (scope) {state.scope = scope.dataset.scope; document.querySelectorAll('[data-scope]').forEach(el => el.classList.toggle('selected',el === scope)); return render();}
   const filter = event.target.closest('[data-filter]'); if (filter) return setTaskFilter(filter.dataset.filter);
-  const day = event.target.closest('[data-day]'); if (day) {
-    const selected = new Date(`${day.dataset.day}T12:00:00`);
-    state.month = new Date(selected.getFullYear(), selected.getMonth(), 1);
-    state.selectedDay = day.dataset.day;
-    state.preferredDay = selected.getDate();
-    return render();
-  }
+  const day = event.target.closest('[data-day]'); if (day) return selectCalendarDay(day.dataset.day);
   const compactEdit = event.target.closest('[data-compact-edit]'); if (compactEdit) {
     const item = state.items.find(entry => entry.id === compactEdit.dataset.compactEdit);
     await toggleCompact(false); setTimeout(() => openEditor(item.kind,item), 300); return;
@@ -301,11 +308,20 @@ function moveMonth(offset) {
   const day = Math.min(state.preferredDay, new Date(target.getFullYear(), target.getMonth() + 1, 0).getDate());
   state.month = target;
   state.selectedDay = localDate(new Date(target.getFullYear(), target.getMonth(), day));
-  render();
+  renderCalendar(scoped(state.items));
 }
 $('#prev-month').onclick = () => moveMonth(-1);
 $('#next-month').onclick = () => moveMonth(1);
-$('#go-today').onclick = () => {const today = new Date(); state.month = today; state.selectedDay = localDate(today); state.preferredDay = today.getDate(); render();};
+$('#go-today').onclick = () => {const today = new Date(); state.month = today; state.selectedDay = localDate(today); state.preferredDay = today.getDate(); renderCalendar(scoped(state.items));};
+$('#calendar-grid').onkeydown = event => {
+  const day = event.target.closest('.calendar-day');
+  const offset = {ArrowLeft:-1,ArrowRight:1,ArrowUp:-7,ArrowDown:7}[event.key];
+  if (!day || offset === undefined) return;
+  event.preventDefault();
+  const next = new Date(`${day.dataset.day}T12:00:00`);
+  next.setDate(next.getDate() + offset);
+  selectCalendarDay(localDate(next));
+};
 async function toggleCompact(value = !desktopCompact) {
   if (!window.todoDesktop) return;
   try {await window.todoDesktop.compact(value);} catch(error) {toast(error.message);}
