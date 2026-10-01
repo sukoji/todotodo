@@ -401,13 +401,13 @@ document.querySelectorAll('[data-date-shortcut]').forEach(button => {
 $('#editor-form').elements.date.oninput = event => {event.target.setCustomValidity(''); syncDateShortcuts();};
 $('#close-dialog').onclick = $('#cancel-button').onclick = requestCloseEditor;
 $('#editor').setAttribute('closedby', 'none');
-$('#editor').addEventListener('close', () => {
+new MutationObserver(() => {
   if (!pendingReminderId || $('#editor').open) return;
   const itemId = pendingReminderId;
   pendingReminderId = null;
   $('#pending-reminder').hidden = true;
   openReminderItem(itemId);
-});
+}).observe($('#editor'), {attributes:true, attributeFilter:['open']});
 $('#editor').addEventListener('keydown', event => {
   if (event.key !== 'Escape') return;
   event.preventDefault();

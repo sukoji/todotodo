@@ -56,8 +56,8 @@ Claude Desktop에서는 **Settings → Extensions → Advanced settings → Inst
 
 ## 다운로드 후 시작
 
-1. [최신 릴리스](https://github.com/sukoji/todotodo/releases/latest)에서 일반 사용에는 `TodoTodo-*-setup.exe`를 내려받습니다. 설치 없이 쓰고 싶다면 `TodoTodo-*-win.zip` 또는 `TodoTodo-*-portable.exe`를 고르세요.
-2. 설치형은 사용자 계정에 설치하고 시작 메뉴와 바탕화면에 바로가기를 만듭니다. ZIP은 한 번 압축을 푼 뒤 폴더 안의 `TodoTodo.exe`를 실행합니다. portable EXE는 한 파일로 간편하지만 실행할 때마다 임시 폴더에 풀어 PC에 따라 시작까지 수십 초 걸릴 수 있습니다. 어느 방식이든 Python·Node.js는 필요하지 않습니다.
+1. [최신 릴리스](https://github.com/sukoji/todotodo/releases/latest)에서 일반 사용에는 `TodoTodo-*-setup.exe`를 내려받습니다. 설치 없이 쓰고 싶다면 `TodoTodo-*-win.zip`을 고르세요.
+2. 설치형은 사용자 계정에 설치하고 시작 메뉴와 바탕화면에 바로가기를 만듭니다. ZIP은 한 번 압축을 푼 뒤 폴더 안의 `TodoTodo.exe`를 실행합니다. 어느 방식이든 Python·Node.js는 필요하지 않습니다.
 3. 연결 없이 쓰다가 필요할 때만 Claude 확장이나 Codex 설정을 추가하세요.
 
 Windows 배포 파일은 현재 코드 서명이 없습니다. 조직 PC에서는 실행 정책에 따라 차단될 수 있습니다. 배포 파일과 소스는 이 저장소의 릴리스에서 함께 확인할 수 있습니다.
