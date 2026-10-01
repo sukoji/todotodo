@@ -52,6 +52,9 @@ body { color: var(--ink); background: var(--cream); }
 .search-result span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #a17460; font-size: 11px; font-weight: 700; }
 .search-result strong { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; }
 .search-result small { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 11px; }
+.search-more { display: flex; justify-content: space-between; align-items: center; width: 100%; margin-top: 5px; padding: 12px; border: 1px dashed #c9b7a4; border-radius: 9px; background: #fbf6ea; color: var(--ink); font-size: 12px; font-weight: 750; text-align: left; }
+.search-more:hover,.search-more:focus-visible { background: #f5e9d2; }
+.search-more span { color: #9b7f6d; font-size: 10px; font-weight: 600; }
 .search-empty { padding: 23px 12px 30px; color: var(--muted); font-size: 11px; text-align: center; }
 #editor { max-height: calc(100vh - 24px); overflow-y: auto; }
 #editor::-webkit-scrollbar { width: 8px; }
@@ -244,7 +247,10 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .segmented { background: #ebe6d9; }
 .segmented button.selected { color: var(--ink); }
 .calendar-day.selected { background: #fff0c8; }
-.calendar-heading .calendar-tools { display: flex; align-items: center; gap: 8px; }
+.calendar-heading .calendar-tools { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.calendar-heading { flex-wrap: wrap; gap: 10px; }
+.calendar-jump { display: inline-flex; align-items: center; gap: 5px; color: #9b7f6d; font-size: 10px; font-weight: 750; white-space: nowrap; }
+.calendar-jump input { width: 125px; min-height: 32px; padding: 4px 5px; border: 1px solid #d9cab8; border-radius: 7px; background: #fffdf8; color: var(--ink); font-size: 11px; }
 .calendar-mode { flex: none; }
 .calendar-mode button { padding: 7px 10px; }
 .calendar-layout.week { grid-template-columns: minmax(0,1fr); }

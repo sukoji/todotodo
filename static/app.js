@@ -10,6 +10,7 @@ let compactSaving = false;
 let pendingAppClose = false;
 let pendingReminderId = null;
 let editorDraftKind = 'task';
+let searchLimit = 30;
 const editorDraftKey = 'todo-editor-drafts-v1';
 const kindName = {task: '할 일', event: '일정', idea: '아이디어'};
 const scopeName = {work: '업무', personal: '개인'};
@@ -153,6 +154,7 @@ function renderIdeas(items) {
 }
 function renderSearch() {
   const focusedId = document.activeElement?.dataset.searchEdit;
+  const focusedMore = document.activeElement?.id === 'search-more';
   const query = $('#search-input').value.trim().toLocaleLowerCase();
   const terms = query.split(/\s+/).filter(Boolean);
   const rank = item => {
@@ -168,25 +170,28 @@ function renderSearch() {
       return terms.every(term => text.includes(term));
     }).sort((a,b) => rank(a) - rank(b) || b.updated_at.localeCompare(a.updated_at))
     : [...state.items].sort((a,b) => b.updated_at.localeCompare(a.updated_at)).slice(0,5);
-  $('#search-count').textContent = query ? `${matches.length}개 결과${matches.length > 30 ? ' · 처음 30개 표시' : ''}` : '최근 기록';
-  $('#search-results').innerHTML = matches.length ? matches.slice(0,30).map(item => {
+  const visible = matches.slice(0,searchLimit);
+  $('#search-count').textContent = query ? `${matches.length}개 결과${matches.length > visible.length ? ` · ${visible.length}개 표시` : ''}` : '최근 기록';
+  $('#search-results').innerHTML = matches.length ? visible.map(item => {
     const details = item.details?.replace(/\s+/g,' ') || '';
     const matchAt = terms.map(term => details.toLocaleLowerCase().indexOf(term)).filter(index => index >= 0).sort((a,b) => a - b)[0];
     const start = matchAt > 45 ? matchAt - 40 : 0;
     const preview = details ? `${start ? '…' : ''}${details.slice(start,start+120)}${start+120 < details.length ? '…' : ''}` : (item.date ? `${formatDate(item.date)} ${formatTime(item)}` : '메모 없음');
     return `<button class="search-result" data-search-edit="${item.id}"><span>${kindName[item.kind]} · ${scopeName[item.scope]}${item.status === 'done' ? ' · 완료' : ''}${item.date ? ` · ${formatDate(item.date)}${item.time ? ` ${escapeHTML(formatTime(item))}` : ''}` : ''}${item.tags ? ` · ${escapeHTML(item.tags.slice(0,60))}` : ''}</span><strong>${escapeHTML(item.title)}</strong><small>${escapeHTML(preview)}</small></button>`;
-  }).join('') : `<div class="search-empty">${query ? '맞는 기록이 없어요. 다른 단어로 찾아보세요.' : '아직 기록이 없어요. 먼저 한 장 적어보세요.'}</div>`;
+  }).join('') + (matches.length > visible.length ? `<button class="search-more" id="search-more" type="button">다음 30개 보기 <span>${matches.length-visible.length}개 남음</span></button>` : '') : `<div class="search-empty">${query ? '맞는 기록이 없어요. 다른 단어로 찾아보세요.' : '아직 기록이 없어요. 먼저 한 장 적어보세요.'}</div>`;
   if (focusedId) $('#search-results').querySelector(`[data-search-edit="${focusedId}"]`)?.focus({preventScroll:true});
+  else if (focusedMore) ($('#search-more') || $('#search-results .search-result:last-child'))?.focus({preventScroll:true});
 }
 async function openSearch() {
   if ($('#editor').open || $('#ai-result').open) return;
   if (desktopCompact) await toggleCompact(false);
-  if (!$('#search-dialog').open) $('#search-dialog').showModal();
+  if (!$('#search-dialog').open) {searchLimit = 30; $('#search-dialog').showModal();}
   renderSearch();
   $('#search-input').focus();
   $('#search-input').select();
 }
 function renderCalendar(items) {
+  if (document.activeElement !== $('#calendar-jump')) $('#calendar-jump').value = state.selectedDay;
   const month = state.month.getMonth(), year = state.month.getFullYear();
   const week = state.calendarMode === 'week';
   const first = new Date(year, month, 1).getDay(), days = new Date(year, month+1, 0).getDate();
@@ -712,6 +717,10 @@ document.querySelectorAll('[data-calendar-mode]').forEach(button => {
   button.onclick = () => {state.calendarMode = button.dataset.calendarMode; renderCalendar(scoped(state.items));};
 });
 $('#go-today').onclick = () => {const today = new Date(); state.month = today; state.selectedDay = localDate(today); state.preferredDay = today.getDate(); renderCalendar(scoped(state.items));};
+$('#calendar-jump').onchange = event => {
+  if (event.target.value) selectCalendarDay(event.target.value);
+  else event.target.value = state.selectedDay;
+};
 $('#calendar-grid').onkeydown = event => {
   const day = event.target.closest('.calendar-day');
   const offset = {ArrowLeft:-1,ArrowRight:1,ArrowUp:-7,ArrowDown:7}[event.key];
@@ -777,19 +786,29 @@ $('#compact-form').onsubmit = async event => {
 };
 $('#search-button').onclick = openSearch;
 $('#close-search').onclick = () => $('#search-dialog').close();
-$('#search-input').oninput = renderSearch;
+$('#search-input').oninput = () => {searchLimit = 30; renderSearch();};
 $('#search-input').onkeydown = event => {
   if (event.key === 'Enter') {event.preventDefault(); $('#search-results .search-result')?.click();}
   if (event.key === 'ArrowDown') {event.preventDefault(); $('#search-results .search-result')?.focus();}
 };
 $('#search-results').onkeydown = event => {
+  if (event.target.id === 'search-more' && event.key === 'ArrowUp') {
+    event.preventDefault(); [...$('#search-results').querySelectorAll('.search-result')].at(-1)?.focus(); return;
+  }
   const result = event.target.closest('.search-result');
   if (!result || !['ArrowDown','ArrowUp'].includes(event.key)) return;
   event.preventDefault();
   const next = event.key === 'ArrowDown' ? result.nextElementSibling : result.previousElementSibling;
-  (next?.matches('.search-result') ? next : event.key === 'ArrowUp' ? $('#search-input') : result).focus();
+  (next?.matches('.search-result, .search-more') ? next : event.key === 'ArrowUp' ? $('#search-input') : result).focus();
 };
 $('#search-results').onclick = event => {
+  if (event.target.closest('#search-more')) {
+    const previous = $('#search-results').querySelectorAll('.search-result').length;
+    searchLimit += 30;
+    renderSearch();
+    $('#search-results').querySelectorAll('.search-result')[previous]?.focus();
+    return;
+  }
   const button = event.target.closest('[data-search-edit]');
   if (!button) return;
   const item = state.items.find(entry => entry.id === button.dataset.searchEdit);
