@@ -226,7 +226,7 @@ function setView(view) {
 }
 function setTaskFilter(filter) {
   state.taskFilter = filter;
-  document.querySelectorAll('[data-filter]').forEach(el => el.classList.toggle('selected',el.dataset.filter === filter));
+  document.querySelectorAll('[data-filter]').forEach(el => {const selected = el.dataset.filter === filter; el.classList.toggle('selected', selected); el.setAttribute('aria-pressed', String(selected));});
   render();
 }
 function syncStatusField() {
@@ -275,7 +275,7 @@ async function openReminderItem(itemId) {
     }
     document.querySelectorAll('dialog[open]').forEach(dialog => dialog.close());
     state.scope = item.scope;
-    document.querySelectorAll('[data-scope]').forEach(el => el.classList.toggle('selected', el.dataset.scope === item.scope));
+    document.querySelectorAll('[data-scope]').forEach(el => {const selected = el.dataset.scope === item.scope; el.classList.toggle('selected', selected); el.setAttribute('aria-pressed', String(selected));});
     render();
     if (item.kind === 'event') {setView('calendar'); if (item.date) selectCalendarDay(item.date);}
     else if (item.kind === 'task') {setView('tasks'); setTaskFilter('all');}
@@ -319,7 +319,7 @@ document.addEventListener('click', async event => {
   }
   const view = event.target.closest('[data-view]'); if (view) return setView(view.dataset.view);
   const create = event.target.closest('[data-new]'); if (create) return openEditor(create.dataset.new);
-  const scope = event.target.closest('[data-scope]'); if (scope) {state.scope = scope.dataset.scope; if (state.scope !== 'all') $('#compact-scope').value = state.scope; document.querySelectorAll('[data-scope]').forEach(el => el.classList.toggle('selected',el === scope)); return render();}
+  const scope = event.target.closest('[data-scope]'); if (scope) {state.scope = scope.dataset.scope; if (state.scope !== 'all') $('#compact-scope').value = state.scope; document.querySelectorAll('[data-scope]').forEach(el => {const selected = el === scope; el.classList.toggle('selected', selected); el.setAttribute('aria-pressed', String(selected));}); return render();}
   const filter = event.target.closest('[data-filter]'); if (filter) return setTaskFilter(filter.dataset.filter);
   const day = event.target.closest('[data-day]'); if (day) return selectCalendarDay(day.dataset.day);
   const compactEdit = event.target.closest('[data-compact-edit]'); if (compactEdit) {
