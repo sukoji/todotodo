@@ -14,7 +14,7 @@ test('automatic backup keeps the latest seven days and preserves an older copy w
     const day = offset => new Date(start.getFullYear(), start.getMonth(), start.getDate() + offset, start.getHours(), start.getMinutes(), start.getSeconds());
     const dateKey = value => `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, '0')}-${String(value.getDate()).padStart(2, '0')}`;
     let calls = 0;
-    const exportData = async () => ({format: 'todotodo-v2', items: [{title: `draft ${++calls}`}]});
+    const exportData = async () => ({format: 'todotodo-v3', items: [{title: `draft ${++calls}`}]});
     const first = await saveAutoBackup(folder, exportData, start);
     const file = path.join(folder, `todotodo-auto-${dateKey(start)}.json`);
     assert.equal(first.created, true);
@@ -34,7 +34,7 @@ test('automatic backup keeps the latest seven days and preserves an older copy w
     await assert.rejects(fs.access(file), {code: 'ENOENT'});
     const latest = path.join(folder, `todotodo-auto-${dateKey(day(8))}.json`);
     const original = await fs.readFile(latest, 'utf8');
-    const empty = await saveAutoBackup(folder, async () => ({format: 'todotodo-v2', items: []}), new Date(day(8).getTime() + 60 * 60000));
+    const empty = await saveAutoBackup(folder, async () => ({format: 'todotodo-v3', items: []}), new Date(day(8).getTime() + 60 * 60000));
     assert.equal(empty.empty, true);
     assert.equal(await fs.readFile(latest, 'utf8'), original);
     await assert.rejects(saveAutoBackup(folder, async () => {throw new Error('export failed');}, new Date(day(8).getTime() + 120 * 60000)));

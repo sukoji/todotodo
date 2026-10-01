@@ -42,14 +42,27 @@ async def main(executable: Path, db: Path):
         result = await client.call_tool("capture_entry", {"title": "Invalid range", "date": "2026-10-02", "time": "10:00", "end_time": "09:00"})
         if not result.is_error or "종료 시간은" not in result.content[0].text:
             raise RuntimeError("MCP end-time validation was not explained")
+        result = await client.call_tool("capture_entry", {"title": "Weekly meeting", "kind": "event", "date": "2026-10-01",
+                                                          "repeat": "weekly", "repeat_until": "2026-10-15"})
+        if result.is_error:
+            raise RuntimeError(result)
+        with closing(sqlite3.connect(db)) as connection:
+            item_id, revision = connection.execute("SELECT id, revision FROM items WHERE title = ? AND date = ?",
+                                                   ("Weekly meeting", "2026-10-08")).fetchone()
+        result = await client.call_tool("stop_repeat", {"item_id": item_id, "expected_revision": revision})
+        if result.is_error:
+            raise RuntimeError(result)
 
     with closing(sqlite3.connect(db)) as connection:
         moved = connection.execute("SELECT kind, scope, status, revision FROM items WHERE title = ?", ("Release smoke test",)).fetchone()
         end_time = connection.execute("SELECT end_time FROM items WHERE title = ?", ("Timed meeting",)).fetchone()[0]
+        remaining_repeat = connection.execute("SELECT COUNT(*) FROM items WHERE title = ?", ("Weekly meeting",)).fetchone()[0]
     if moved != ("task", "work", "done", 2):
         raise RuntimeError("MCP guarded edit was not saved to the expected database")
     if end_time != "11:00":
         raise RuntimeError("MCP end time was not saved to the expected database")
+    if remaining_repeat != 1:
+        raise RuntimeError("MCP repeat stop did not keep only the earlier occurrence")
     print("Packaged MCP read/write and validation smoke test passed")
 
 

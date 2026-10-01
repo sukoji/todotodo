@@ -44,7 +44,7 @@ class APITests(unittest.TestCase):
                 export_request = Request(url + "/api/export", headers={"Authorization": "Bearer test-secret"})
                 with urlopen(export_request) as response:
                     backup = json.load(response)
-                self.assertEqual(backup["format"], "todotodo-v2")
+                self.assertEqual(backup["format"], "todotodo-v3")
                 self.assertEqual(backup["items"][0]["end_time"], "")
                 import_request = Request(url + "/api/import", data=json.dumps(backup).encode(), headers={"Content-Type": "application/json"}, method="POST")
                 with self.assertRaises(HTTPError) as error:
@@ -57,6 +57,19 @@ class APITests(unittest.TestCase):
                 large_request = Request(url + "/api/import", data=large_backup, headers={"Content-Type": "application/json", "Authorization": "Bearer test-secret"}, method="POST")
                 with urlopen(large_request, timeout=30) as response:
                     self.assertEqual(json.load(response), {"imported": 0, "skipped": 0})
+                repeat_request = Request(url + "/api/items", data=json.dumps({
+                    "title": "주간 회의", "kind": "event", "date": "2026-10-01",
+                    "repeat": "weekly", "repeat_until": "2026-10-22",
+                }).encode(), headers={"Content-Type": "application/json", "Authorization": "Bearer test-secret"}, method="POST")
+                with urlopen(repeat_request) as response:
+                    repeated = json.load(response)
+                self.assertEqual(len([item for item in store.list_items() if item["series_id"] == repeated["id"]]), 4)
+                second = next(item for item in store.list_items() if item["date"] == "2026-10-08")
+                stop_request = Request(url + f"/api/items/{second['id']}", data=json.dumps({
+                    "expected_revision": second["revision"], "future": True,
+                }).encode(), headers={"Content-Type": "application/json", "Authorization": "Bearer test-secret"}, method="DELETE")
+                with urlopen(stop_request) as response:
+                    self.assertEqual(json.load(response)["deleted"], 3)
                 with urlopen(url + "/logo.svg") as response:
                     self.assertEqual(response.status, 200)
                 with urlopen(url + "/") as response:

@@ -13,6 +13,7 @@ let editorDraftKind = 'task';
 const editorDraftKey = 'todo-editor-drafts-v1';
 const kindName = {task: '할 일', event: '일정', idea: '아이디어'};
 const scopeName = {work: '업무', personal: '개인'};
+const repeatName = {daily: '매일', weekly: '매주', monthly: '매월'};
 $('#dialog-title').insertAdjacentHTML('afterend', '<p id="pending-reminder" class="pending-reminder" role="status" hidden></p>');
 
 function localDate(value) {
@@ -70,7 +71,7 @@ function scoped(items) { return state.scope === 'all' ? items : items.filter(ite
 function openItems(items) { return items.filter(item => item.status !== 'done'); }
 function row(item, showDate = true, reschedule = false) {
   const complete = item.status === 'done';
-  const meta = [scopeName[item.scope], kindName[item.kind], formatTime(item), item.tags || ''].filter(Boolean);
+  const meta = [scopeName[item.scope], kindName[item.kind], item.repeat ? `${repeatName[item.repeat]} 반복` : '', formatTime(item), item.tags || ''].filter(Boolean);
   return `<div class="item-row ${complete ? 'is-done' : ''}"><button class="check-button ${complete ? 'done' : ''}" data-complete="${item.id}" aria-label="${complete ? '완료 취소' : '완료'}">${complete ? '✓' : ''}</button><div class="item-body" data-edit="${item.id}" role="button" tabindex="0" aria-label="${escapeHTML(item.title)} 수정"><div class="item-title">${escapeHTML(item.title)} ${item.priority === 'high' ? '<i class="priority-high" title="높은 우선순위"></i>' : ''}${item.kind === 'task' && item.status === 'doing' ? '<span class="status-chip">진행 중</span>' : ''}</div><div class="item-meta">${meta.map(text => `<span>${escapeHTML(text)}</span>`).join('<span>·</span>')}</div></div>${showDate && item.date ? `<span class="item-date">${formatDate(item.date)}</span>` : ''}${reschedule ? `<button class="reschedule-button" data-reschedule="${item.id}" aria-label="${escapeHTML(item.title)} 오늘로 옮기기">오늘로 ↗</button>` : ''}</div>`;
 }
 function empty(message) { return `<div class="empty-state"><img class="empty-illustration" src="./empty.svg" alt="">${message}</div>`; }
@@ -275,6 +276,27 @@ function syncStatusField() {
   $('#task-status-field').hidden = !task;
   document.querySelectorAll('#task-status-field input').forEach(input => {input.disabled = !task;});
 }
+function syncRepeatField(fillDefault = false) {
+  const form = $('#editor-form'), kind = form.elements.kind.value;
+  const series = Boolean(state.editing?.series_id), idea = kind === 'idea';
+  const repeat = form.elements.repeat, until = form.elements.repeat_until;
+  if (idea) {repeat.value = ''; until.value = '';}
+  if (fillDefault && repeat.value && !until.value && form.elements.date.value) {
+    const next = new Date(`${form.elements.date.value}T12:00:00`);
+    next.setFullYear(next.getFullYear() + 1);
+    until.value = localDate(next);
+  }
+  $('#repeat-fields').hidden = idea;
+  $('#repeat-until-field').hidden = idea || !repeat.value;
+  repeat.disabled = idea || series;
+  until.disabled = idea || series || !repeat.value;
+  until.required = !idea && !series && Boolean(repeat.value);
+  until.min = form.elements.date.value || '';
+  $('#repeat-note').hidden = !series && !repeat.value;
+  $('#repeat-note').textContent = series
+    ? `이 날짜만 수정됩니다. ${repeatName[state.editing.repeat]} 반복은 ${formatDate(state.editing.repeat_until)}까지 만들었어요.`
+    : repeat.value ? `종료 날짜까지 날짜별 기록을 만듭니다. 각 날짜는 따로 완료·수정할 수 있어요.${repeat.value === 'monthly' ? ' 없는 날짜는 그 달의 말일에 놓습니다.' : ''} 최대 1,000개까지 만들 수 있습니다.` : '';
+}
 function shortcutDate(key) {
   if (key === 'clear') return '';
   const day = new Date();
@@ -311,7 +333,7 @@ function saveEditorDraft() {
   const defaultScope = state.scope === 'all' ? 'personal' : state.scope;
   if (![draft.title, draft.details, draft.tags, draft.time, draft.end_time].some(value => value?.trim()) &&
       (!draft.date || (kind === 'event' && draft.date === state.selectedDay)) &&
-      draft.scope === defaultScope && draft.priority === 'normal' && draft.status === 'todo') {
+      !draft.repeat && draft.scope === defaultScope && draft.priority === 'normal' && draft.status === 'todo') {
     clearEditorDraft(kind);
     return;
   }
@@ -329,7 +351,7 @@ function restoreEditorDraft(kind) {
   const draft = editorDrafts()[kind];
   if (draft && typeof draft === 'object') {
     const form = $('#editor-form');
-    for (const key of ['title','details','date','time','end_time','scope','priority','status','tags']) {
+    for (const key of ['title','details','date','time','end_time','repeat','repeat_until','scope','priority','status','tags']) {
       if (typeof draft[key] === 'string') form.elements[key].value = draft[key];
     }
   }
@@ -339,16 +361,18 @@ function restoreEditorDraft(kind) {
 function openEditor(kind = 'task', item = null) {
   state.editing = item;
   const form = $('#editor-form'); form.reset();
-  for (const key of ['date','time','end_time']) form.elements[key].setCustomValidity('');
+  for (const key of ['date','time','end_time','repeat_until']) form.elements[key].setCustomValidity('');
   form.elements.kind.value = item?.kind || kind;
+  form.querySelector('[name="kind"][value="idea"]').disabled = Boolean(item?.series_id);
   form.elements.status.value = item?.status || 'todo';
-  for (const key of ['title','details','date','time','end_time','scope','priority','tags']) if (item) form.elements[key].value = item[key] || '';
+  for (const key of ['title','details','date','time','end_time','repeat','repeat_until','scope','priority','tags']) if (item) form.elements[key].value = item[key] || '';
   syncStatusField();
   if (!item && kind === 'event') form.elements.date.value = state.selectedDay;
   if (!item && state.scope !== 'all') form.elements.scope.value = state.scope;
   editorDraftKind = form.elements.kind.value;
   $('#editor-draft-notice').hidden = Boolean(item);
   if (!item) restoreEditorDraft(editorDraftKind);
+  syncRepeatField();
   syncDateShortcuts();
   renderEditorConflicts();
   $('#dialog-title').textContent = item ? '항목 수정' : '새 항목 만들기';
@@ -402,7 +426,7 @@ function requestCloseApp() {
 }
 function showConflict(action) {
   conflictAction = action;
-  $('#conflict-force').textContent = action === 'delete' ? '변경된 기록 삭제하기' : '내 내용으로 덮어쓰기';
+  $('#conflict-force').textContent = action === 'delete-future' ? '이후 반복 삭제하기' : action === 'delete' ? '변경된 기록 삭제하기' : '내 내용으로 덮어쓰기';
   $('#conflict-dialog').showModal();
 }
 document.addEventListener('click', async event => {
@@ -501,6 +525,16 @@ $('#editor-form').addEventListener('submit', async event => {
     form.elements.end_time.reportValidity();
     return;
   }
+  if (data.repeat && !data.date) {
+    form.elements.date.setCustomValidity('반복하려면 시작 날짜를 선택하세요.');
+    form.elements.date.reportValidity();
+    return;
+  }
+  if (data.repeat && data.repeat_until < data.date) {
+    form.elements.repeat_until.setCustomValidity('반복 종료 날짜는 시작 날짜보다 이르지 않아야 합니다.');
+    form.elements.repeat_until.reportValidity();
+    return;
+  }
   saving = true;
   const saveButton = form.querySelector('button[type="submit"]');
   saveButton.disabled = true;
@@ -514,7 +548,8 @@ $('#editor-form').addEventListener('submit', async event => {
       const visible = state.taskFilter === 'all' || (state.taskFilter === 'open' && saved.status !== 'done') || state.taskFilter === saved.status;
       if (!visible) setTaskFilter(saved.status === 'todo' ? 'open' : saved.status);
     }
-    toast(created ? '기록했습니다.' : '수정했습니다.');
+    const repeated = data.repeat && saved.series_id ? state.items.filter(item => item.series_id === saved.series_id).length : 0;
+    toast(repeated ? `${repeated}개 날짜에 반복 기록을 만들었어요.` : created ? '기록했습니다.' : '수정했습니다.');
   } catch(error) {if (error.status === 409) showConflict('save'); else toast(error.message);}
   finally {saving = false; saveButton.disabled = false;}
 });
@@ -523,12 +558,17 @@ document.querySelectorAll('#editor-form input[name="kind"]').forEach(input => {i
     editorDraftKind = input.value;
     restoreEditorDraft(input.value);
   }
-  syncStatusField(); syncDateShortcuts(); renderEditorConflicts();
+  syncStatusField(); syncRepeatField(); syncDateShortcuts(); renderEditorConflicts();
   saveEditorDraft();
 };});
 document.querySelectorAll('[data-date-shortcut]').forEach(button => {
-  button.onclick = () => {const form = $('#editor-form'), date = form.elements.date; date.value = shortcutDate(button.dataset.dateShortcut); date.setCustomValidity(''); if (!date.value) {form.elements.time.value = ''; form.elements.end_time.value = '';} syncDateShortcuts(); renderEditorConflicts(); saveEditorDraft();};
+  button.onclick = () => {const form = $('#editor-form'), date = form.elements.date; date.value = shortcutDate(button.dataset.dateShortcut); date.setCustomValidity(''); if (!date.value) {form.elements.time.value = ''; form.elements.end_time.value = '';} syncDateShortcuts(); syncRepeatField(); renderEditorConflicts(); saveEditorDraft();};
 });
+$('#editor-form').elements.repeat.onchange = () => {
+  const form = $('#editor-form');
+  if (!form.elements.repeat.value) form.elements.repeat_until.value = '';
+  syncRepeatField(true); saveEditorDraft();
+};
 $('#editor-form').addEventListener('input', event => {if (event.target.matches('[name="date"], [name="time"], [name="end_time"], [name="status"]')) renderEditorConflicts();});
 $('#editor-form').addEventListener('input', event => {if (event.target.name !== 'kind') queueMicrotask(saveEditorDraft);});
 $('#editor-form').addEventListener('change', event => {if (event.target.tagName === 'SELECT') saveEditorDraft();});
@@ -536,17 +576,18 @@ $('#clear-editor-draft').onclick = () => {
   const kind = $('#editor-form').elements.kind.value;
   clearEditorDraft(kind);
   const form = $('#editor-form'); form.reset(); form.elements.kind.value = kind;
-  for (const key of ['date','time','end_time']) form.elements[key].setCustomValidity('');
+  for (const key of ['date','time','end_time','repeat_until']) form.elements[key].setCustomValidity('');
   if (kind === 'event') form.elements.date.value = state.selectedDay;
   if (state.scope !== 'all') form.elements.scope.value = state.scope;
   $('#editor-draft-notice').hidden = true;
-  syncStatusField(); syncDateShortcuts(); renderEditorConflicts();
+  syncStatusField(); syncRepeatField(); syncDateShortcuts(); renderEditorConflicts();
   editorBaseline = JSON.stringify([...new FormData(form)]);
   form.elements.title.focus();
 };
-$('#editor-form').elements.date.oninput = event => {event.target.setCustomValidity(''); if (!event.target.value) {$('#editor-form').elements.time.value = ''; $('#editor-form').elements.end_time.value = '';} syncDateShortcuts();};
+$('#editor-form').elements.date.oninput = event => {event.target.setCustomValidity(''); if (!event.target.value) {$('#editor-form').elements.time.value = ''; $('#editor-form').elements.end_time.value = '';} syncDateShortcuts(); syncRepeatField();};
 $('#editor-form').elements.time.oninput = event => {event.target.setCustomValidity(''); if (!event.target.value) $('#editor-form').elements.end_time.value = ''; $('#editor-form').elements.end_time.setCustomValidity('');};
 $('#editor-form').elements.end_time.oninput = event => event.target.setCustomValidity('');
+$('#editor-form').elements.repeat_until.oninput = event => event.target.setCustomValidity('');
 $('#close-dialog').onclick = $('#cancel-button').onclick = requestCloseEditor;
 $('#editor').setAttribute('closedby', 'none');
 new MutationObserver(() => {
@@ -573,12 +614,30 @@ $('#discard-editing').onclick = () => {
   if ($('#editor').open) $('#editor').close();
   if (closeApp) confirmCloseApp();
 };
-$('#delete-button').onclick = () => {if (!state.editing) return; if (saving) {toast('저장 중입니다.'); return;} $('#delete-item-title').textContent = state.editing.title; $('#delete-dialog').showModal();};
+$('#delete-button').onclick = () => {
+  if (!state.editing) return;
+  if (saving) {toast('저장 중입니다.'); return;}
+  const item = state.editing;
+  const future = item.series_id ? state.items.filter(entry => entry.series_id === item.series_id && entry.date >= item.date).length : 0;
+  $('#delete-item-title').textContent = item.title;
+  $('#delete-future').hidden = future < 2;
+  $('#delete-future').textContent = `이 날짜부터 ${future}개 삭제`;
+  $('#delete-dialog').showModal();
+};
 $('#cancel-delete').onclick = () => $('#delete-dialog').close();
 $('#confirm-delete').onclick = async () => {
   const button = $('#confirm-delete'); button.disabled = true;
   try {await api(`/api/items/${state.editing.id}`,{method:'DELETE',body:JSON.stringify({expected_revision:state.editing.revision})}); $('#delete-dialog').close(); $('#editor').close(); toast('삭제했습니다.'); await refresh();}
   catch(error) {if (error.status === 409) {$('#delete-dialog').close(); showConflict('delete');} else toast(error.message);}
+  finally {button.disabled = false;}
+};
+$('#delete-future').onclick = async () => {
+  const button = $('#delete-future'); button.disabled = true;
+  try {
+    const result = await api(`/api/items/${state.editing.id}`, {method:'DELETE', body:JSON.stringify({expected_revision:state.editing.revision, future:true})});
+    $('#delete-dialog').close(); $('#editor').close(); await refresh();
+    toast(`${result.deleted}개 반복 기록을 삭제했습니다.`);
+  } catch(error) {if (error.status === 409) {$('#delete-dialog').close(); showConflict('delete-future');} else toast(error.message);}
   finally {button.disabled = false;}
 };
 $('#conflict-keep').onclick = () => $('#conflict-dialog').close();
@@ -593,8 +652,8 @@ $('#conflict-reload').onclick = async () => {
 $('#conflict-force').onclick = async () => {
   const button = $('#conflict-force'); button.disabled = true;
   try {
-    const itemId = state.editing.id, deleting = conflictAction === 'delete';
-    await api(`/api/items/${itemId}`,{method:deleting ? 'DELETE' : 'PATCH',body:deleting ? undefined : JSON.stringify(Object.fromEntries(new FormData($('#editor-form'))))});
+    const itemId = state.editing.id, deleting = conflictAction === 'delete' || conflictAction === 'delete-future';
+    await api(`/api/items/${itemId}`,{method:deleting ? 'DELETE' : 'PATCH',body:deleting ? JSON.stringify({future:conflictAction === 'delete-future'}) : JSON.stringify(Object.fromEntries(new FormData($('#editor-form'))))});
     $('#conflict-dialog').close(); $('#editor').close(); await refresh();
     toast(deleting ? '삭제했습니다.' : '내 내용으로 저장했습니다.');
   } catch(error) {toast(error.message);}

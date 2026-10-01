@@ -59,7 +59,7 @@ class Handler(BaseHTTPRequestHandler):
             params = {key: values[0] for key, values in parse_qs(parsed.query).items()}
             return self.send_data(200, day_brief(**params))
         if path == "/api/export" and self.command == "GET":
-            return self.send_data(200, {"format": "todotodo-v2", "items": list_items()})
+            return self.send_data(200, {"format": "todotodo-v3", "items": list_items()})
         if path == "/api/import" and self.command == "POST":
             return self.send_data(200, import_items(self.read_json(100_000_000)))
         if path.startswith("/api/items/"):
@@ -75,9 +75,10 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send_data(200, item) if item else self.send_data(404, {"error": "항목을 찾을 수 없습니다."})
             if self.command == "DELETE":
                 changes = self.read_json() if int(self.headers.get("Content-Length", "0")) else {}
-                if not isinstance(changes, dict) or set(changes) - {"expected_revision"}:
+                if not isinstance(changes, dict) or set(changes) - {"expected_revision", "future"}:
                     raise ValueError("삭제 요청이 올바르지 않습니다.")
-                return self.send_data(200, {"deleted": True}) if delete_item(item_id, changes.get("expected_revision")) else self.send_data(404, {"error": "항목을 찾을 수 없습니다."})
+                deleted = delete_item(item_id, changes.get("expected_revision"), changes.get("future", False))
+                return self.send_data(200, {"deleted": deleted}) if deleted else self.send_data(404, {"error": "항목을 찾을 수 없습니다."})
         return self.send_data(404, {"error": "찾을 수 없습니다."})
 
     def do_GET(self):

@@ -60,6 +60,34 @@ class MCPTests(unittest.TestCase):
 
             asyncio.run(run())
 
+    def test_agent_can_create_and_stop_repeated_schedule(self):
+        with tempfile.TemporaryDirectory() as folder, patch.object(store, "DB_PATH", Path(folder) / "agent.db"):
+            store.init_db()
+
+            async def run():
+                async with Client(mcp) as client:
+                    result = await client.call_tool("capture_entry", {
+                        "title": "주간 회의", "kind": "event", "date": "2026-10-01", "time": "10:00",
+                        "repeat": "weekly", "repeat_until": "2026-10-22",
+                    })
+                    self.assertFalse(result.is_error)
+                    entries = store.list_items()
+                    self.assertEqual(len(entries), 4)
+                    result = await client.call_tool("stop_repeat", {
+                        "item_id": entries[1]["id"], "expected_revision": entries[1]["revision"],
+                    })
+                    self.assertFalse(result.is_error)
+                    self.assertEqual([item["date"] for item in store.list_items()], ["2026-10-01"])
+                    one_off = store.create_item({"title": "물 주기", "kind": "task", "date": "2026-10-02"})
+                    result = await client.call_tool("revise_entry", {
+                        "item_id": one_off["id"], "repeat": "daily", "repeat_until": "2026-10-04",
+                        "expected_revision": one_off["revision"],
+                    })
+                    self.assertFalse(result.is_error)
+                    self.assertEqual(len([item for item in store.list_items() if item["series_id"] == one_off["id"]]), 3)
+
+            asyncio.run(run())
+
     def test_agent_can_move_entries_without_overwriting_newer_edits(self):
         with tempfile.TemporaryDirectory() as folder, patch.object(store, "DB_PATH", Path(folder) / "agent.db"):
             store.init_db()

@@ -25,7 +25,7 @@ async function saveAutoBackup(folder, exportData, now = new Date(), force = fals
   try {existing = await fs.stat(target);} catch (error) {if (error.code !== 'ENOENT') throw error;}
   if (!force && existing && now.getTime() - existing.mtimeMs < BACKUP_INTERVAL_MS) return {...await backupStatus(folder), created: false};
   const data = await exportData();
-  if (data?.format !== 'todotodo-v2' || !Array.isArray(data.items)) throw new Error('자동 백업 데이터를 확인할 수 없습니다.');
+  if (data?.format !== 'todotodo-v3' || !Array.isArray(data.items)) throw new Error('자동 백업 데이터를 확인할 수 없습니다.');
   if (!data.items.length) return {...await backupStatus(folder), created: false, empty: true};
   const content = JSON.stringify(data, null, 2);
   if (Buffer.byteLength(content, 'utf8') > MAX_BACKUP_BYTES) throw new Error('자동 백업이 100MB를 넘었습니다. 데이터를 나눠 백업해 주세요.');

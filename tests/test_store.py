@@ -68,7 +68,7 @@ class StoreTests(unittest.TestCase):
             store.update_item(item["id"], {"time": "09:30"})
         self.assertEqual(len(store.list_items()), 1)
 
-        old_entry = {key: value for key, value in {**item, "id": "a" * 32, "date": "", "time": "09:30"}.items() if key != "end_time"}
+        old_entry = {key: value for key, value in {**item, "id": "a" * 32, "date": "", "time": "09:30"}.items() if key not in ("end_time", "repeat", "repeat_until", "series_id")}
         self.assertEqual(store.import_items({"format": "todotodo-v1", "items": [old_entry]})["imported"], 1)
         self.assertEqual(store.update_item(old_entry["id"], {"status": "done"})["status"], "done")
         roundtrip = {"format": "todotodo-v2", "items": [store.get_item(old_entry["id"])]}
@@ -95,6 +95,68 @@ class StoreTests(unittest.TestCase):
         store.delete_item(item["id"])
         self.assertEqual(store.import_items(backup)["imported"], 1)
         self.assertEqual(store.get_item(item["id"])["end_time"], "13:00")
+
+    def test_repeated_dates_keep_month_end_and_each_occurrence_is_independent(self):
+        self.assertEqual(store.recurring_dates("2026-01-31", "2026-04-30", "monthly", "event"),
+                         ["2026-01-31", "2026-02-28", "2026-03-31", "2026-04-30"])
+        first = store.create_item({"title": "월말 결산", "kind": "event", "scope": "work", "date": "2026-01-31",
+                                   "time": "10:00", "end_time": "11:00", "repeat": "monthly", "repeat_until": "2026-04-30"})
+        entries = store.list_items()
+        self.assertEqual([item["date"] for item in entries], ["2026-01-31", "2026-02-28", "2026-03-31", "2026-04-30"])
+        self.assertEqual({item["series_id"] for item in entries}, {first["id"]})
+        self.assertEqual(len({item["id"] for item in entries}), 4)
+        self.assertTrue(all(item["repeat"] == "monthly" and item["repeat_until"] == "2026-04-30" for item in entries))
+        changed = store.update_item(entries[1]["id"], {"status": "done", "title": "2월 결산"}, expected_revision=0)
+        self.assertEqual(changed["status"], "done")
+        self.assertEqual(store.get_item(entries[2]["id"])["title"], "월말 결산")
+        self.assertEqual(store.day_brief("2026-03-31", "work")["due_today"][0]["id"], entries[2]["id"])
+        with self.assertRaises(store.ConflictError):
+            store.delete_item(entries[1]["id"], expected_revision=0, future=True)
+        with self.assertRaises(ValueError):
+            store.delete_item(entries[2]["id"], future="yes")
+        self.assertEqual(store.delete_item(entries[2]["id"], expected_revision=0, future=True), 2)
+        self.assertEqual([item["date"] for item in store.list_items()], ["2026-01-31", "2026-02-28"])
+        self.assertTrue(all(item["repeat_until"] == "2026-02-28" for item in store.list_items()))
+        backup = {"format": "todotodo-v3", "items": store.list_items()}
+        for item in store.list_items():
+            store.delete_item(item["id"])
+        self.assertEqual(store.import_items(backup)["imported"], 2)
+        self.assertEqual(store.list_items(), backup["items"])
+
+    def test_repeat_conversion_validation_and_atomic_limit(self):
+        task = store.create_item({"title": "스트레칭", "kind": "task", "date": "2026-10-01"})
+        changed = store.update_item(task["id"], {"repeat": "weekly", "repeat_until": "2026-10-22"}, expected_revision=0)
+        self.assertEqual(changed["series_id"], task["id"])
+        self.assertEqual([item["date"] for item in store.list_items()],
+                         ["2026-10-01", "2026-10-08", "2026-10-15", "2026-10-22"])
+        with self.assertRaises(store.ConflictError):
+            store.update_item(task["id"], {"title": "오래된 수정"}, expected_revision=0)
+        with self.assertRaises(ValueError):
+            store.update_item(task["id"], {"repeat": "daily", "repeat_until": "2026-10-25"})
+        with self.assertRaises(ValueError):
+            store.update_item(task["id"], {"kind": "idea"})
+        self.assertEqual(len(store.list_items()), 4)
+        for fields in (
+            {"repeat": "daily", "repeat_until": "2026-10-03"},
+            {"date": "2026-10-01", "repeat": "monthly", "repeat_until": "2026-09-30"},
+            {"date": "2026-10-01", "repeat": "daily", "repeat_until": "2030-01-01"},
+            {"date": "2026-10-01", "repeat": "hourly", "repeat_until": "2026-10-03"},
+            {"date": "2026-10-01", "kind": "idea", "repeat": "daily", "repeat_until": "2026-10-03"},
+        ):
+            with self.assertRaises(ValueError):
+                store.create_item({"title": "잘못된 반복", **fields})
+        self.assertEqual(len(store.list_items()), 4)
+
+    def test_deleting_one_repeat_updates_end_only_when_last_date_changes(self):
+        first = store.create_item({"title": "주간 정리", "date": "2026-10-01",
+                                   "repeat": "weekly", "repeat_until": "2026-10-22"})
+        entries = store.list_items()
+        self.assertTrue(store.delete_item(entries[1]["id"], expected_revision=0))
+        self.assertEqual(store.get_item(first["id"])["repeat_until"], "2026-10-22")
+        self.assertEqual(store.get_item(first["id"])["revision"], 0)
+        self.assertTrue(store.delete_item(entries[3]["id"], expected_revision=0))
+        self.assertEqual(store.get_item(first["id"])["repeat_until"], "2026-10-15")
+        self.assertEqual(store.get_item(first["id"])["revision"], 1)
 
     def test_backup_import_is_idempotent_and_atomic(self):
         first = store.create_item({"title": "되찾을 생각", "kind": "idea", "details": "원본 메모"})
@@ -145,13 +207,14 @@ class StoreTests(unittest.TestCase):
         self.assertEqual(store.get_item("a" * 32)["title"], "기존 기록")
         self.assertEqual(store.get_item("a" * 32)["revision"], 0)
         self.assertEqual(store.get_item("a" * 32)["end_time"], "")
+        self.assertEqual((store.get_item("a" * 32)["repeat"], store.get_item("a" * 32)["series_id"]), ("", ""))
         item = store.create_item({"title": "옛날 백업"})
-        legacy = {key: value for key, value in item.items() if key not in ("revision", "end_time")}
+        legacy = {key: value for key, value in item.items() if key not in ("revision", "end_time", "repeat", "repeat_until", "series_id")}
         store.delete_item(item["id"])
         self.assertEqual(store.import_items({"format": "todotodo-v1", "items": [legacy]}), {"imported": 1, "skipped": 0})
         self.assertEqual(store.get_item(item["id"])["revision"], 0)
         self.assertEqual(store.get_item(item["id"])["end_time"], "")
-        with_revision = {key: value for key, value in store.create_item({"title": "최근 옛 백업"}).items() if key != "end_time"}
+        with_revision = {key: value for key, value in store.create_item({"title": "최근 옛 백업"}).items() if key not in ("end_time", "repeat", "repeat_until", "series_id")}
         store.delete_item(with_revision["id"])
         self.assertEqual(store.import_items({"format": "todotodo-v1", "items": [with_revision]})["imported"], 1)
         self.assertEqual(store.get_item(with_revision["id"])["end_time"], "")

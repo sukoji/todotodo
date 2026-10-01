@@ -65,6 +65,13 @@ body { color: var(--ink); background: var(--cream); }
 .editor-draft-notice button { flex: none; border: 0; background: transparent; color: #755730; font: inherit; font-weight: 700; text-decoration: underline; cursor: pointer; }
 .editor-draft-notice button:focus-visible { outline: 2px solid #755730; outline-offset: 3px; }
 #editor .date-shortcuts button { min-height: 32px; font-size: 11px; }
+.repeat-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 8px; }
+.repeat-fields[hidden] { display: none; }
+.repeat-fields .field { margin: 8px 0; }
+.repeat-fields .field[hidden],.repeat-note[hidden],#delete-future[hidden] { display: none; }
+.repeat-note { margin: 2px 0 8px; color: #718078; font-size: 11px; line-height: 1.5; }
+#delete-dialog .dialog-footer { flex-wrap: wrap; justify-content: flex-end; }
+#delete-future { background: #fff0df; }
 #editor .status-field legend,#editor .status-field span { font-size: 12px; }
 #editor .dialog-footer button { min-height: 38px; font-size: 12px; }
 .pending-reminder { max-width: 360px; margin: 9px 0 0; padding: 7px 9px; border: 1px solid #d6bc9d; border-radius: 7px; background: #fff0cd; color: var(--ink); font-size: 11px; line-height: 1.5; overflow-wrap: anywhere; }
