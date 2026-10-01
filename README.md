@@ -35,7 +35,7 @@ PC가 잠자기에서 돌아온 뒤에도 일정 시작 5분 이내라면 놓친
 지난 날짜의 할 일은 **오늘로 ↗**를 눌러 다시 오늘 목록에 놓을 수 있습니다. 실수했다면 아래에 나타나는 **되돌리기**로 원래 날짜를 되찾으세요.
 달력은 월간과 주간으로 볼 수 있습니다. 일정에는 시작·종료 시각을 함께 적을 수 있고, 주간 보기에서는 시간 범위를 확인할 수 있습니다. 날짜를 고르면 하루 시간표에 일정과 할 일의 시각·길이가 나타나고, 시간이 없는 기록은 아래에 모입니다. 시간표에서도 바로 완료하거나 편집할 수 있습니다. 시간이 겹친 항목은 날짜와 편집창에서 알려줍니다. 겹쳐도 저장할 수 있어요. 화살표로 한 주씩 넘기거나 Tab과 방향키로 날짜를 고르세요. 고른 날짜에 일정을 추가하면 그 날짜가 자동으로 채워집니다.
 
-할 일과 일정은 **매일·매주·매월** 반복할 수 있습니다. 시작 날짜와 종료 날짜를 정하면 각 날짜에 독립된 기록을 만듭니다. 한 번의 완료나 수정은 그 날짜에만 적용되고, 필요하면 선택한 날짜부터 이후 반복을 한꺼번에 지울 수 있습니다. 매월 31일처럼 없는 날짜는 그 달의 말일에 놓습니다. 기본 종료 날짜는 1년 뒤이며, 한 번에 최대 1,000개까지 만듭니다. 에이전트도 같은 반복 규칙으로 기록할 수 있습니다.
+할 일과 일정은 **매일·매주·매월** 반복할 수 있습니다. 시작 날짜와 종료 날짜를 정하면 각 날짜에 독립된 기록을 만듭니다. 편집할 때 **이 날짜부터 적용**을 선택하면 바꾼 제목·메모·시간 등의 필드만 이후 기록에 반영하고, 각 날짜와 완료 상태는 유지합니다. 필요하면 선택한 날짜부터 이후 반복을 한꺼번에 지울 수 있습니다. 매월 31일처럼 없는 날짜는 그 달의 말일에 놓습니다. 기본 종료 날짜는 1년 뒤이며, 한 번에 최대 1,000개까지 만듭니다. 에이전트도 같은 반복 규칙으로 기록할 수 있습니다.
 
 ![주간 달력](docs/week.png)
 
@@ -81,7 +81,7 @@ npm start
 
 웹 화면만 실행하려면 `python app.py` 후 <http://127.0.0.1:8765>를 여세요. 소스 실행 시 기본 데이터 파일은 프로젝트 폴더의 `todotodo.db`입니다. `TODOTODO_DB`로 경로를 바꿀 수 있습니다.
 
-MCP 서버만 실행하려면 `uv run python mcp_server.py`를 stdio 서버로 등록하세요. 도구는 `list_entries`, `get_entry`, `capture_entry`, `revise_entry`, `mark_done`, `stop_repeat`, `get_daily_brief`입니다. `capture_entry`와 `revise_entry`에서 `repeat`와 `repeat_until`을 전달하면 반복 기록을 만들 수 있습니다. `stop_repeat`은 선택한 날짜부터 이후 반복을 지웁니다. 기존 기록을 고치거나 완료·중단할 때는 조회 결과의 `revision`을 `expected_revision`으로 전달하면 그 사이 다른 곳에서 바뀐 내용을 덮어쓰지 않습니다. 웹 API는 `GET/POST /api/items`, `PATCH/DELETE /api/items/{id}`, `GET /api/brief`, `GET /api/export`, `POST /api/import`를 제공합니다.
+MCP 서버만 실행하려면 `uv run python mcp_server.py`를 stdio 서버로 등록하세요. 도구는 `list_entries`, `get_entry`, `capture_entry`, `revise_entry`, `mark_done`, `stop_repeat`, `get_daily_brief`입니다. `capture_entry`와 `revise_entry`에서 `repeat`와 `repeat_until`을 전달하면 반복 기록을 만들 수 있습니다. 기존 반복 기록에 `revise_entry(future=True)`를 쓰면 전달한 필드만 선택한 날짜부터 수정합니다. `stop_repeat`은 선택한 날짜부터 이후 반복을 지웁니다. 기존 기록을 고치거나 완료·중단할 때는 조회 결과의 `revision`을 `expected_revision`으로 전달하면 그 사이 다른 곳에서 바뀐 내용을 덮어쓰지 않습니다. 웹 API는 `GET/POST /api/items`, `PATCH/DELETE /api/items/{id}`, `GET /api/brief`, `GET /api/export`, `POST /api/import`를 제공합니다.
 
 ```bash
 npm run check

@@ -70,6 +70,12 @@ body { color: var(--ink); background: var(--cream); }
 .repeat-fields .field { margin: 8px 0; }
 .repeat-fields .field[hidden],.repeat-note[hidden],#delete-future[hidden] { display: none; }
 .repeat-note { margin: 2px 0 8px; color: #718078; font-size: 11px; line-height: 1.5; }
+.future-option { display: flex; align-items: flex-start; gap: 10px; margin: 14px 0 4px; padding: 12px; border: 1px solid #ded8ef; border-radius: 11px; background: #f7f4ff; cursor: pointer; }
+.future-option[hidden] { display: none; }
+.future-option input { margin: 2px 0 0; accent-color: #7362d4; }
+.future-option strong,.future-option small { display: block; }
+.future-option strong { color: #594c9f; font-size: 11px; }
+.future-option small { margin-top: 4px; color: #777189; font-size: 10px; line-height: 1.5; }
 #delete-dialog .dialog-footer { flex-wrap: wrap; justify-content: flex-end; }
 #delete-future { background: #fff0df; }
 #editor .status-field legend,#editor .status-field span { font-size: 12px; }

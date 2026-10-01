@@ -244,13 +244,17 @@ def get_item(item_id):
     return dict(row) if row else None
 
 
-def update_item(item_id, data, expected_revision=None):
+def update_item(item_id, data, expected_revision=None, future=False):
     if expected_revision is not None:
         validate_revision(expected_revision)
+    if type(future) is not bool:
+        raise ValueError("이후 반복 수정 옵션이 올바르지 않습니다.")
     data = dict(data) if isinstance(data, dict) else data
     repeat = data.pop("repeat", "") if isinstance(data, dict) else ""
     repeat_until = data.pop("repeat_until", "") if isinstance(data, dict) else ""
     validate(data, partial=True)
+    if future and (repeat or repeat_until or not data or set(data) - {"title", "details", "kind", "scope", "priority", "time", "end_time", "tags"}):
+        raise ValueError("이후 반복에는 제목·메모·종류·공간·우선순위·시간·태그만 수정할 수 있습니다.")
     if not data and not repeat:
         raise ValueError("변경할 필드가 없습니다.")
     for key in ("title", "details", "tags"):
@@ -263,10 +267,24 @@ def update_item(item_id, data, expected_revision=None):
             return None
         if expected_revision is not None and current["revision"] != expected_revision:
             raise ConflictError("기록이 다른 곳에서 바뀌었습니다.")
+        if future and not current["series_id"]:
+            raise ValueError("반복 기록만 이후 일정을 수정할 수 있습니다.")
         if current["series_id"] and data.get("kind") == "idea":
             raise ValueError("반복 기록은 아이디어로 바꿀 수 없습니다.")
         if any(key in data for key in ("date", "time", "end_time")):
             validate_schedule({key: data.get(key, current[key]) for key in ("date", "time", "end_time")})
+        if future:
+            if "time" in data or "end_time" in data:
+                future_rows = db.execute("SELECT date, time, end_time FROM items WHERE series_id = ? AND date >= ?",
+                                         (current["series_id"], current["date"])).fetchall()
+                for row in future_rows:
+                    validate_schedule({"date": row["date"], "time": data.get("time", row["time"]),
+                                       "end_time": data.get("end_time", row["end_time"])})
+            data["updated_at"] = datetime.now().astimezone().isoformat(timespec="seconds")
+            assignments = ", ".join(f"{key} = ?" for key in data) + ", revision = revision + 1"
+            db.execute(f"UPDATE items SET {assignments} WHERE series_id = ? AND date >= ?",
+                       [*data.values(), current["series_id"], current["date"]])
+            return dict(db.execute("SELECT * FROM items WHERE id = ?", (item_id,)).fetchone())
         if repeat or repeat_until:
             if current["series_id"]:
                 raise ValueError("반복으로 만든 날짜는 개별 기록만 수정할 수 있습니다.")

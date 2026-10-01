@@ -65,6 +65,14 @@ class APITests(unittest.TestCase):
                     repeated = json.load(response)
                 self.assertEqual(len([item for item in store.list_items() if item["series_id"] == repeated["id"]]), 4)
                 second = next(item for item in store.list_items() if item["date"] == "2026-10-08")
+                future_patch = Request(url + f"/api/items/{second['id']}", data=json.dumps({
+                    "details": "공통 안건", "future": True, "expected_revision": second["revision"],
+                }).encode(), headers={"Content-Type": "application/json", "Authorization": "Bearer test-secret"}, method="PATCH")
+                with urlopen(future_patch) as response:
+                    self.assertEqual(json.load(response)["details"], "공통 안건")
+                self.assertEqual([item["details"] for item in store.list_items() if item["series_id"] == repeated["id"]],
+                                 ["", "공통 안건", "공통 안건", "공통 안건"])
+                second = store.get_item(second["id"])
                 stop_request = Request(url + f"/api/items/{second['id']}", data=json.dumps({
                     "expected_revision": second["revision"], "future": True,
                 }).encode(), headers={"Content-Type": "application/json", "Authorization": "Bearer test-secret"}, method="DELETE")

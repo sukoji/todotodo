@@ -158,6 +158,36 @@ class StoreTests(unittest.TestCase):
         self.assertEqual(store.get_item(first["id"])["repeat_until"], "2026-10-15")
         self.assertEqual(store.get_item(first["id"])["revision"], 1)
 
+    def test_future_edit_updates_only_supplied_fields_and_preserves_completion(self):
+        first = store.create_item({"title": "Weekly", "kind": "event", "date": "2026-10-01",
+                                   "time": "10:00", "end_time": "11:00", "repeat": "weekly", "repeat_until": "2026-10-22"})
+        entries = store.list_items()
+        store.update_item(entries[1]["id"], {"details": "Special notes", "status": "done"})
+        changed = store.update_item(entries[1]["id"], {"title": "Updated", "time": "11:00", "end_time": "12:00"},
+                                    expected_revision=1, future=True)
+        self.assertEqual(changed["revision"], 2)
+        self.assertEqual([item["title"] for item in store.list_items()], ["Weekly", "Updated", "Updated", "Updated"])
+        self.assertEqual([item["status"] for item in store.list_items()], ["todo", "done", "todo", "todo"])
+        self.assertEqual([item["details"] for item in store.list_items()], ["", "Special notes", "", ""])
+        self.assertEqual([item["date"] for item in store.list_items()], ["2026-10-01", "2026-10-08", "2026-10-15", "2026-10-22"])
+        with self.assertRaises(store.ConflictError):
+            store.update_item(entries[1]["id"], {"title": "Stale"}, expected_revision=1, future=True)
+        with self.assertRaises(ValueError):
+            store.update_item(entries[1]["id"], {"date": "2026-10-09"}, future=True)
+        with self.assertRaises(ValueError):
+            store.update_item(first["id"], {"status": "done"}, future=True)
+        self.assertEqual(store.list_items()[2]["title"], "Updated")
+
+    def test_future_time_edit_is_atomic_when_one_date_has_a_custom_end_time(self):
+        store.create_item({"title": "Weekly", "kind": "event", "date": "2026-10-01",
+                           "time": "10:00", "end_time": "12:00", "repeat": "weekly", "repeat_until": "2026-10-22"})
+        entries = store.list_items()
+        store.update_item(entries[2]["id"], {"end_time": "11:00"})
+        before = store.list_items()
+        with self.assertRaises(ValueError):
+            store.update_item(entries[1]["id"], {"time": "11:30"}, expected_revision=0, future=True)
+        self.assertEqual(store.list_items(), before)
+
     def test_backup_import_is_idempotent_and_atomic(self):
         first = store.create_item({"title": "되찾을 생각", "kind": "idea", "details": "원본 메모"})
         backup = {"format": "todotodo-v2", "items": store.list_items()}

@@ -71,7 +71,8 @@ class Handler(BaseHTTPRequestHandler):
                 if not isinstance(changes, dict):
                     raise ValueError("JSON 객체가 필요합니다.")
                 expected_revision = changes.pop("expected_revision", None)
-                item = update_item(item_id, changes, expected_revision)
+                future = changes.pop("future", False)
+                item = update_item(item_id, changes, expected_revision, future=future)
                 return self.send_data(200, item) if item else self.send_data(404, {"error": "항목을 찾을 수 없습니다."})
             if self.command == "DELETE":
                 changes = self.read_json() if int(self.headers.get("Content-Length", "0")) else {}

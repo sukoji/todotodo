@@ -49,7 +49,17 @@ async def main(executable: Path, db: Path):
         with closing(sqlite3.connect(db)) as connection:
             item_id, revision = connection.execute("SELECT id, revision FROM items WHERE title = ? AND date = ?",
                                                    ("Weekly meeting", "2026-10-08")).fetchone()
-        result = await client.call_tool("stop_repeat", {"item_id": item_id, "expected_revision": revision})
+        result = await client.call_tool("revise_entry", {"item_id": item_id, "details": "Shared agenda",
+                                                         "future": True, "expected_revision": revision})
+        if result.is_error:
+            raise RuntimeError(result)
+        with closing(sqlite3.connect(db)) as connection:
+            future_notes = connection.execute("SELECT date, details FROM items WHERE title = ? ORDER BY date",
+                                              ("Weekly meeting",)).fetchall()
+        if future_notes != [("2026-10-01", ""), ("2026-10-08", "Shared agenda"),
+                            ("2026-10-15", "Shared agenda")]:
+            raise RuntimeError("MCP future edit did not preserve the earlier occurrence")
+        result = await client.call_tool("stop_repeat", {"item_id": item_id, "expected_revision": revision + 1})
         if result.is_error:
             raise RuntimeError(result)
 

@@ -42,11 +42,11 @@ def revise_entry(item_id: str, title: str | None = None, details: str | None = N
                   date: str | None = None, time: str | None = None, end_time: str | None = None, status: str | None = None,
                   priority: str | None = None, tags: str | None = None, kind: str | None = None,
                   scope: str | None = None, repeat: str | None = None, repeat_until: str | None = None,
-                  expected_revision: int | None = None) -> dict:
-    """Update supplied fields. An existing one-off task/event can start repeating with repeat=daily/weekly/monthly and repeat_until=YYYY-MM-DD. Repeated occurrences can be edited individually. Pass expected_revision to protect concurrent edits."""
-    changes = {key: value for key, value in locals().items() if key not in ("item_id", "expected_revision") and value is not None}
+                  expected_revision: int | None = None, future: bool = False) -> dict:
+    """Update supplied fields. Use future=True on a repeated entry to apply title/details/kind/scope/priority/time/end_time/tags from that date onward; dates and completion stay individual. A one-off can start repeating with repeat and repeat_until. Pass expected_revision to protect concurrent edits."""
+    changes = {key: value for key, value in locals().items() if key not in ("item_id", "expected_revision", "future") and value is not None}
     try:
-        return update_item(item_id, changes, expected_revision=expected_revision) or {"error": "Entry not found"}
+        return update_item(item_id, changes, expected_revision=expected_revision, future=future) or {"error": "Entry not found"}
     except (ValueError, ConflictError) as exc:
         raise ToolError(str(exc)) from exc
 

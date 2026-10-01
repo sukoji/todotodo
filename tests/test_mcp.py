@@ -73,6 +73,14 @@ class MCPTests(unittest.TestCase):
                     self.assertFalse(result.is_error)
                     entries = store.list_items()
                     self.assertEqual(len(entries), 4)
+                    result = await client.call_tool("revise_entry", {
+                        "item_id": entries[1]["id"], "title": "새 회의 이름", "future": True,
+                        "expected_revision": entries[1]["revision"],
+                    })
+                    self.assertFalse(result.is_error)
+                    self.assertEqual([item["title"] for item in store.list_items()],
+                                     ["주간 회의", "새 회의 이름", "새 회의 이름", "새 회의 이름"])
+                    entries = store.list_items()
                     result = await client.call_tool("stop_repeat", {
                         "item_id": entries[1]["id"], "expected_revision": entries[1]["revision"],
                     })

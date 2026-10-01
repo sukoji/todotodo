@@ -297,6 +297,31 @@ function syncRepeatField(fillDefault = false) {
     ? `이 날짜만 수정됩니다. ${repeatName[state.editing.repeat]} 반복은 ${formatDate(state.editing.repeat_until)}까지 만들었어요.`
     : repeat.value ? `종료 날짜까지 날짜별 기록을 만듭니다. 각 날짜는 따로 완료·수정할 수 있어요.${repeat.value === 'monthly' ? ' 없는 날짜는 그 달의 말일에 놓습니다.' : ''} 최대 1,000개까지 만들 수 있습니다.` : '';
 }
+const FUTURE_FIELDS = ['title', 'details', 'kind', 'scope', 'priority', 'time', 'end_time', 'tags'];
+function editorPayload() {
+  const form = $('#editor-form'), data = Object.fromEntries(new FormData(form));
+  if (!form.elements.future.checked) return data;
+  const changed = Object.fromEntries(FUTURE_FIELDS.filter(key => data[key] !== state.editing[key]).map(key => [key, data[key]]));
+  return {...changed, future: true};
+}
+function syncFutureOption() {
+  const form = $('#editor-form'), option = $('#future-option');
+  const futureCount = state.editing?.series_id ? state.items.filter(item => item.series_id === state.editing.series_id && item.date >= state.editing.date).length : 0;
+  option.hidden = futureCount < 2;
+  if (option.hidden) form.elements.future.checked = false;
+  const future = form.elements.future.checked;
+  if (future) {
+    form.elements.date.value = state.editing.date;
+    form.elements.status.value = state.editing.status;
+    syncDateShortcuts();
+  }
+  form.elements.date.disabled = future;
+  document.querySelectorAll('[data-date-shortcut]').forEach(button => {button.disabled = future;});
+  document.querySelectorAll('#task-status-field input').forEach(input => {input.disabled = future || form.elements.kind.value !== 'task';});
+  if (state.editing?.series_id) $('#repeat-note').textContent = future
+    ? `이 날짜부터 ${futureCount}개 기록에 바꾼 내용을 적용합니다. 날짜와 완료 상태는 유지해요.`
+    : `이 날짜만 수정됩니다. ${repeatName[state.editing.repeat]} 반복은 ${formatDate(state.editing.repeat_until)}까지 만들었어요.`;
+}
 function shortcutDate(key) {
   if (key === 'clear') return '';
   const day = new Date();
@@ -373,6 +398,7 @@ function openEditor(kind = 'task', item = null) {
   $('#editor-draft-notice').hidden = Boolean(item);
   if (!item) restoreEditorDraft(editorDraftKind);
   syncRepeatField();
+  syncFutureOption();
   syncDateShortcuts();
   renderEditorConflicts();
   $('#dialog-title').textContent = item ? '항목 수정' : '새 항목 만들기';
@@ -509,18 +535,22 @@ document.addEventListener('click', async event => {
 $('#editor-form').addEventListener('submit', async event => {
   event.preventDefault();
   if (saving) return;
-  const form = event.currentTarget, data = Object.fromEntries(new FormData(form));
-  if (data.time && !data.date) {
+  const form = event.currentTarget, data = editorPayload();
+  const date = data.future ? state.editing.date : data.date;
+  if (data.future && Object.keys(data).length === 1) {toast('이후 기록에 적용할 내용을 먼저 바꿔주세요.'); return;}
+  if (data.time && !date) {
     form.elements.date.setCustomValidity('시간을 입력하려면 날짜를 먼저 선택하세요.');
     form.elements.date.reportValidity();
     return;
   }
-  if (data.end_time && !data.time) {
+  const startTime = data.future ? (data.time ?? state.editing.time) : data.time;
+  const endTime = data.future ? (data.end_time ?? state.editing.end_time) : data.end_time;
+  if (endTime && !startTime) {
     form.elements.time.setCustomValidity('종료 시간을 입력하려면 시작 시간을 먼저 선택하세요.');
     form.elements.time.reportValidity();
     return;
   }
-  if (data.end_time && data.end_time <= data.time) {
+  if (endTime && endTime <= startTime) {
     form.elements.end_time.setCustomValidity('종료 시간은 시작 시간보다 늦어야 합니다.');
     form.elements.end_time.reportValidity();
     return;
@@ -549,7 +579,7 @@ $('#editor-form').addEventListener('submit', async event => {
       if (!visible) setTaskFilter(saved.status === 'todo' ? 'open' : saved.status);
     }
     const repeated = data.repeat && saved.series_id ? state.items.filter(item => item.series_id === saved.series_id).length : 0;
-    toast(repeated ? `${repeated}개 날짜에 반복 기록을 만들었어요.` : created ? '기록했습니다.' : '수정했습니다.');
+    toast(data.future ? '이후 반복 기록에 적용했습니다.' : repeated ? `${repeated}개 날짜에 반복 기록을 만들었어요.` : created ? '기록했습니다.' : '수정했습니다.');
   } catch(error) {if (error.status === 409) showConflict('save'); else toast(error.message);}
   finally {saving = false; saveButton.disabled = false;}
 });
@@ -558,7 +588,7 @@ document.querySelectorAll('#editor-form input[name="kind"]').forEach(input => {i
     editorDraftKind = input.value;
     restoreEditorDraft(input.value);
   }
-  syncStatusField(); syncRepeatField(); syncDateShortcuts(); renderEditorConflicts();
+  syncStatusField(); syncRepeatField(); syncFutureOption(); syncDateShortcuts(); renderEditorConflicts();
   saveEditorDraft();
 };});
 document.querySelectorAll('[data-date-shortcut]').forEach(button => {
@@ -569,6 +599,7 @@ $('#editor-form').elements.repeat.onchange = () => {
   if (!form.elements.repeat.value) form.elements.repeat_until.value = '';
   syncRepeatField(true); saveEditorDraft();
 };
+$('#editor-form').elements.future.onchange = () => {syncFutureOption(); renderEditorConflicts();};
 $('#editor-form').addEventListener('input', event => {if (event.target.matches('[name="date"], [name="time"], [name="end_time"], [name="status"]')) renderEditorConflicts();});
 $('#editor-form').addEventListener('input', event => {if (event.target.name !== 'kind') queueMicrotask(saveEditorDraft);});
 $('#editor-form').addEventListener('change', event => {if (event.target.tagName === 'SELECT') saveEditorDraft();});
@@ -653,7 +684,7 @@ $('#conflict-force').onclick = async () => {
   const button = $('#conflict-force'); button.disabled = true;
   try {
     const itemId = state.editing.id, deleting = conflictAction === 'delete' || conflictAction === 'delete-future';
-    await api(`/api/items/${itemId}`,{method:deleting ? 'DELETE' : 'PATCH',body:deleting ? JSON.stringify({future:conflictAction === 'delete-future'}) : JSON.stringify(Object.fromEntries(new FormData($('#editor-form'))))});
+    await api(`/api/items/${itemId}`,{method:deleting ? 'DELETE' : 'PATCH',body:deleting ? JSON.stringify({future:conflictAction === 'delete-future'}) : JSON.stringify(editorPayload())});
     $('#conflict-dialog').close(); $('#editor').close(); await refresh();
     toast(deleting ? '삭제했습니다.' : '내 내용으로 저장했습니다.');
   } catch(error) {toast(error.message);}
