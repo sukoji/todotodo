@@ -1,6 +1,6 @@
 {
   "name": "todotodo-desktop",
-  "version": "0.1.14",
+  "version": "0.1.15",
   "private": true,
   "author": "Sukojin",
   "description": "Desktop tasks, schedule and ideas with MCP integration",
@@ -39,10 +39,21 @@
     ],
     "win": {
       "icon": "electron/icon.ico",
-      "artifactName": "TodoTodo-${version}-portable.${ext}",
       "target": [
+        "nsis",
         "portable"
       ]
+    },
+    "nsis": {
+      "artifactName": "TodoTodo-${version}-setup.${ext}",
+      "oneClick": true,
+      "perMachine": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "deleteAppDataOnUninstall": false
+    },
+    "portable": {
+      "artifactName": "TodoTodo-${version}-portable.${ext}"
     }
   }
 }

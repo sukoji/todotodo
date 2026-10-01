@@ -48,13 +48,13 @@ Claude Desktop에서는 **Settings → Extensions → Advanced settings → Inst
 
 ## 다운로드 후 시작
 
-1. [최신 릴리스](https://github.com/sukoji/todotodo/releases/latest)에서 `TodoTodo-*-portable.exe`를 내려받습니다.
-2. 실행하면 바로 사용할 수 있습니다. 설치나 관리자 권한, Python·Node.js가 필요하지 않습니다.
+1. [최신 릴리스](https://github.com/sukoji/todotodo/releases/latest)에서 일반 사용에는 `TodoTodo-*-setup.exe`를 내려받습니다. 설치 없이 쓰려면 `TodoTodo-*-portable.exe`를 고르세요.
+2. 설치형은 사용자 계정에 설치하고 시작 메뉴와 바탕화면에 바로가기를 만듭니다. portable은 실행할 때마다 앱 파일을 임시 폴더에 풀어 시작이 더 오래 걸릴 수 있습니다. 두 방식 모두 Python·Node.js는 필요하지 않습니다.
 3. 연결 없이 쓰다가 필요할 때만 Claude 확장이나 Codex 설정을 추가하세요.
 
 Windows 배포 파일은 현재 코드 서명이 없습니다. 조직 PC에서는 실행 정책에 따라 차단될 수 있습니다. 배포 파일과 소스는 이 저장소의 릴리스에서 함께 확인할 수 있습니다.
 
-데이터는 `%APPDATA%\TodoTodo\todotodo.db`에 저장됩니다. 앱을 켜 둔 동안 30분마다 JSON 자동 백업을 갱신하고 최근 7일분을 같은 기기의 `backups` 폴더에 보관합니다. **연결 및 설정**에서 백업 폴더를 열거나, 다른 드라이브에 둘 JSON 백업을 직접 내보낼 수 있습니다. 가져오기는 기존 기록을 유지하고 중복 항목을 건너뜁니다. 계정 동기화, 앱 종료 후 알림, 반복 일정은 아직 없습니다.
+두 실행 방식 모두 데이터는 `%APPDATA%\TodoTodo\todotodo.db`에 저장됩니다. 설치형을 제거해도 기록은 남습니다. 앱을 켜 둔 동안 30분마다 JSON 자동 백업을 갱신하고 최근 7일분을 같은 기기의 `backups` 폴더에 보관합니다. **연결 및 설정**에서 백업 폴더를 열거나, 다른 드라이브에 둘 JSON 백업을 직접 내보낼 수 있습니다. 가져오기는 기존 기록을 유지하고 중복 항목을 건너뜁니다. 계정 동기화, 앱 종료 후 알림, 반복 일정은 아직 없습니다.
 
 ## 개발자를 위한 실행 방법
 

@@ -13,6 +13,8 @@ Copy-Item -LiteralPath 'packaging/mcpb/manifest.json' -Destination 'build/mcpb/m
 npx mcpb pack build/mcpb build/backend/todotodo-claude-win.mcpb
 if ($LASTEXITCODE -ne 0) { throw 'Claude extension build failed.' }
 
+npx electron-builder --win nsis
+if ($LASTEXITCODE -ne 0) { throw 'Installer build failed.' }
 npx electron-builder --win portable
-if ($LASTEXITCODE -ne 0) { throw 'Electron build failed.' }
+if ($LASTEXITCODE -ne 0) { throw 'Portable build failed.' }
 Copy-Item -LiteralPath 'build/backend/todotodo-claude-win.mcpb' -Destination 'release/todotodo-claude-win.mcpb' -Force
