@@ -61,10 +61,10 @@ async function refresh() {
 }
 function scoped(items) { return state.scope === 'all' ? items : items.filter(item => item.scope === state.scope); }
 function openItems(items) { return items.filter(item => item.status !== 'done'); }
-function row(item, showDate = true) {
+function row(item, showDate = true, reschedule = false) {
   const complete = item.status === 'done';
   const meta = [scopeName[item.scope], kindName[item.kind], item.time || '', item.tags || ''].filter(Boolean);
-  return `<div class="item-row ${complete ? 'is-done' : ''}"><button class="check-button ${complete ? 'done' : ''}" data-complete="${item.id}" aria-label="${complete ? '완료 취소' : '완료'}">${complete ? '✓' : ''}</button><div class="item-body" data-edit="${item.id}" role="button" tabindex="0" aria-label="${escapeHTML(item.title)} 수정"><div class="item-title">${escapeHTML(item.title)} ${item.priority === 'high' ? '<i class="priority-high" title="높은 우선순위"></i>' : ''}${item.kind === 'task' && item.status === 'doing' ? '<span class="status-chip">진행 중</span>' : ''}</div><div class="item-meta">${meta.map(text => `<span>${escapeHTML(text)}</span>`).join('<span>·</span>')}</div></div>${showDate && item.date ? `<span class="item-date">${formatDate(item.date)}</span>` : ''}</div>`;
+  return `<div class="item-row ${complete ? 'is-done' : ''}"><button class="check-button ${complete ? 'done' : ''}" data-complete="${item.id}" aria-label="${complete ? '완료 취소' : '완료'}">${complete ? '✓' : ''}</button><div class="item-body" data-edit="${item.id}" role="button" tabindex="0" aria-label="${escapeHTML(item.title)} 수정"><div class="item-title">${escapeHTML(item.title)} ${item.priority === 'high' ? '<i class="priority-high" title="높은 우선순위"></i>' : ''}${item.kind === 'task' && item.status === 'doing' ? '<span class="status-chip">진행 중</span>' : ''}</div><div class="item-meta">${meta.map(text => `<span>${escapeHTML(text)}</span>`).join('<span>·</span>')}</div></div>${showDate && item.date ? `<span class="item-date">${formatDate(item.date)}</span>` : ''}${reschedule ? `<button class="reschedule-button" data-reschedule="${item.id}" aria-label="${escapeHTML(item.title)} 오늘로 옮기기">오늘로 ↗</button>` : ''}</div>`;
 }
 function empty(message) { return `<div class="empty-state"><img class="empty-illustration" src="./empty.svg" alt="">${message}</div>`; }
 function render() {
@@ -87,7 +87,7 @@ function render() {
   const overdue = openItems(items.filter(item => item.kind === 'task' && item.date && item.date < today)).sort((a,b) => b.date.localeCompare(a.date));
   $('#overdue-section').hidden = overdue.length === 0;
   $('#overdue-count').textContent = `${overdue.length}개`;
-  $('#overdue-list').innerHTML = overdue.map(item => row(item)).join('');
+  $('#overdue-list').innerHTML = overdue.map(item => row(item, true, true)).join('');
   const upcoming = openItems(items.filter(item => item.date > today)).sort((a,b) => (a.date+a.time).localeCompare(b.date+b.time)).slice(0, 3);
   $('#upcoming-list').innerHTML = upcoming.length ? upcoming.map(item => row(item)).join('') : empty('다가오는 일정이 없어요.');
   renderTasks(items); renderIdeas(items); renderCalendar(items); renderCompact(items);
@@ -124,7 +124,7 @@ function renderTasks(items) {
     ['날짜 없음', active.filter(item => !item.date).sort((a,b) => Number(b.status === 'doing') - Number(a.status === 'doing') || Number(b.priority === 'high') - Number(a.priority === 'high') || b.created_at.localeCompare(a.created_at))]
   ];
   if (state.taskFilter === 'all') groups.push(['완료', results.filter(item => item.status === 'done').sort((a,b) => b.updated_at.localeCompare(a.updated_at))]);
-  $('#tasks-list').innerHTML = groups.filter(([,entries]) => entries.length).map(([label,entries]) => `<h2 class="task-group-heading">${label}<span>${entries.length}개</span></h2>${entries.map(item => row(item)).join('')}`).join('');
+  $('#tasks-list').innerHTML = groups.filter(([,entries]) => entries.length).map(([label,entries]) => `<h2 class="task-group-heading">${label}<span>${entries.length}개</span></h2>${entries.map(item => row(item, true, item.status !== 'done' && item.date && item.date < today)).join('')}`).join('');
 }
 function renderIdeas(items) {
   const ideas = items.filter(item => item.kind === 'idea').sort((a,b) => b.created_at.localeCompare(a.created_at));
@@ -285,6 +285,31 @@ document.addEventListener('click', async event => {
   const compactEdit = event.target.closest('[data-compact-edit]'); if (compactEdit) {
     const item = state.items.find(entry => entry.id === compactEdit.dataset.compactEdit);
     await toggleCompact(false); setTimeout(() => openEditor(item.kind,item), 300); return;
+  }
+  const reschedule = event.target.closest('[data-reschedule]'); if (reschedule) {
+    const item = state.items.find(entry => entry.id === reschedule.dataset.reschedule);
+    reschedule.disabled = true;
+    try {
+      const saved = await api(`/api/items/${item.id}`, {method:'PATCH', body:JSON.stringify({date:localDate(new Date()), expected_revision:item.revision})});
+      await refresh();
+      document.querySelector(`.view.active [data-edit="${item.id}"]`)?.focus({preventScroll:true});
+      toast('오늘로 옮겼어요', {label:'되돌리기', run: async () => {
+        try {
+          await api(`/api/items/${item.id}`, {method:'PATCH', body:JSON.stringify({date:item.date, expected_revision:saved.revision})});
+          await refresh();
+          document.querySelector(`.view.active [data-reschedule="${item.id}"]`)?.focus({preventScroll:true});
+          toast('원래 날짜로 돌렸어요');
+        } catch(error) {
+          if (error.status === 409) await refresh();
+          toast(error.status === 409 ? '다른 곳에서 바뀌어 되돌릴 수 없어요' : error.message);
+        }
+      }});
+    } catch(error) {
+      reschedule.disabled = false;
+      if (error.status === 409) await refresh();
+      toast(error.message);
+    }
+    return;
   }
   const edit = event.target.closest('[data-edit]'); if (edit) return openEditor('task',state.items.find(item => item.id === edit.dataset.edit));
   const complete = event.target.closest('[data-complete]'); if (complete) {
