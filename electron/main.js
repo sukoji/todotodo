@@ -9,7 +9,7 @@ const {dueReminder, pruneReminderHistory} = require('./reminders');
 
 const root = path.resolve(__dirname, '..');
 app.setName('TodoTodo');
-let window, edgeWindow, edgeDisplayId, server, baseURL, authToken, dbPath, settingsPath, secretsPath, backupFolder, timer, backupTimer, boundsTimer, movingByApp = false, resizeGeneration = 0, backupRunning = false, rendererReady = false, closeApproved = false, quitting = false;
+let window, edgeWindow, edgeDisplayId, server, baseURL, authToken, dbPath, settingsPath, secretsPath, backupFolder, timer, backupTimer, boundsTimer, movingByApp = false, resizeGeneration = 0, resizeTarget = null, backupRunning = false, rendererReady = false, closeApproved = false, quitting = false;
 let pendingReminderId = null;
 let backupState = {lastAt: null, count: 0};
 const defaults = {alwaysOnTop: false, opacity: 100, notifications: true, reminderMinutes: 10, compact: false, edgeSide: 'right', edgeY: {}, normalBounds: {}, compactBounds: {}, lastDisplayId: null, reminderHistory: {}};
@@ -90,7 +90,8 @@ function resizeWindow(target) {
   const generation = ++resizeGeneration;
   const reduced = systemPreferences.getAnimationSettings().prefersReducedMotion;
   movingByApp = true;
-  if (reduced) {window.setBounds(target); movingByApp = false; rememberBounds(); return;}
+  resizeTarget = target;
+  if (reduced) {window.setBounds(target); resizeTarget = null; movingByApp = false; rememberBounds(); return;}
   const started = Date.now();
   const tick = () => {
     if (generation !== resizeGeneration || !window || window.isDestroyed()) return;
@@ -99,7 +100,7 @@ function resizeWindow(target) {
     const value = key => Math.round(start[key] + (target[key] - start[key]) * eased);
     window.setBounds({x: value('x'), y: value('y'), width: value('width'), height: value('height')});
     if (t < 1) setTimeout(tick, 16);
-    else {movingByApp = false; rememberBounds();}
+    else {resizeTarget = null; movingByApp = false; rememberBounds();}
   };
   tick();
 }
@@ -126,10 +127,13 @@ function setCompact(value) {
 
 function keepWindowVisible() {
   if (!window || window.isDestroyed()) return;
+  const target = resizeTarget;
+  if (target) {resizeGeneration++; resizeTarget = null; movingByApp = false;}
   const display = currentDisplay(), bounds = window.getBounds();
   window.setMinimumSize(Math.min(settings.compact ? 300 : 650, display.workArea.width), Math.min(settings.compact ? 250 : 550, display.workArea.height));
-  const safe = clampBounds(bounds, display, settings.compact);
+  const safe = clampBounds(target || bounds, display, settings.compact);
   if (JSON.stringify(bounds) !== JSON.stringify(safe)) window.setBounds(safe);
+  if (target) rememberBounds();
   if (edgeWindow && edgeWindow.isVisible()) positionEdge();
 }
 
