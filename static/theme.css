@@ -68,9 +68,10 @@ body { color: var(--ink); background: var(--cream); }
 .status-field label:hover span { transform: translateY(-2px); }
 .status-field input:checked+span { border-color: #80b4a8; background: #e5f1e9; color: var(--ink); font-weight: 750; }
 .status-field input:focus-visible+span { outline: 3px solid #e9a78f; outline-offset: 2px; }
-#delete-dialog { width: min(410px, calc(100vw - 24px)); background: #fffdf7; border: 1.5px solid #dbc6b3; }
+#discard-dialog,#delete-dialog { width: min(410px, calc(100vw - 24px)); background: #fffdf7; border: 1.5px solid #dbc6b3; }
+#discard-dialog p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
 .delete-mark { display: grid; place-items: center; width: 40px; height: 40px; border: 1.5px solid var(--ink); border-radius: 12px; background: #ffe4d3; color: #c47859; font-size: 22px; transform: rotate(-8deg); }
-#delete-dialog h2 { margin: 16px 0 7px; font-size: 18px; }
+#discard-dialog h2,#delete-dialog h2 { margin: 16px 0 7px; font-size: 18px; }
 #delete-item-title { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
 .delete-confirm-button { height: 32px; padding: 0 12px; border: 1px solid #cf7c65; border-radius: 7px; background: #ffe4d3; color: #8d4835; font-size: 10px; font-weight: 750; }
 .delete-confirm-button:hover { background: #ffd0bc; }

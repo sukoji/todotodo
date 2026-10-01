@@ -3,6 +3,8 @@ const state = {items: [], view: 'home', scope: 'all', taskFilter: 'open', editin
 let desktopCompact = false;
 let renderedDate = '';
 let conflictAction = null;
+let editorBaseline = '';
+let saving = false;
 const kindName = {task: '할 일', event: '일정', idea: '아이디어'};
 const scopeName = {work: '업무', personal: '개인'};
 
@@ -208,8 +210,14 @@ function openEditor(kind = 'task', item = null) {
   syncDateShortcuts();
   $('#dialog-title').textContent = item ? '항목 수정' : '새 항목 만들기';
   $('#delete-button').hidden = !item;
+  editorBaseline = JSON.stringify([...new FormData(form)]);
   $('#editor').showModal();
   form.elements.title.focus();
+}
+function requestCloseEditor() {
+  if (saving) {toast('저장 중입니다.'); return;}
+  if (JSON.stringify([...new FormData($('#editor-form'))]) !== editorBaseline) $('#discard-dialog').showModal();
+  else $('#editor').close();
 }
 function showConflict(action) {
   conflictAction = action;
@@ -255,12 +263,16 @@ document.addEventListener('click', async event => {
 });
 $('#editor-form').addEventListener('submit', async event => {
   event.preventDefault();
+  if (saving) return;
   const form = event.currentTarget, data = Object.fromEntries(new FormData(form));
   if (data.time && !data.date) {
     form.elements.date.setCustomValidity('시간을 입력하려면 날짜를 먼저 선택하세요.');
     form.elements.date.reportValidity();
     return;
   }
+  saving = true;
+  const saveButton = form.querySelector('button[type="submit"]');
+  saveButton.disabled = true;
   try {
     const created = !state.editing;
     if (!created) data.expected_revision = state.editing.revision;
@@ -272,14 +284,24 @@ $('#editor-form').addEventListener('submit', async event => {
     }
     toast(created ? '기록했습니다.' : '수정했습니다.');
   } catch(error) {if (error.status === 409) showConflict('save'); else toast(error.message);}
+  finally {saving = false; saveButton.disabled = false;}
 });
 document.querySelectorAll('#editor-form input[name="kind"]').forEach(input => {input.onchange = syncStatusField;});
 document.querySelectorAll('[data-date-shortcut]').forEach(button => {
   button.onclick = () => {const date = $('#editor-form').elements.date; date.value = shortcutDate(button.dataset.dateShortcut); date.setCustomValidity(''); syncDateShortcuts();};
 });
 $('#editor-form').elements.date.oninput = event => {event.target.setCustomValidity(''); syncDateShortcuts();};
-$('#close-dialog').onclick = $('#cancel-button').onclick = () => $('#editor').close();
-$('#delete-button').onclick = () => {if (!state.editing) return; $('#delete-item-title').textContent = state.editing.title; $('#delete-dialog').showModal();};
+$('#close-dialog').onclick = $('#cancel-button').onclick = requestCloseEditor;
+$('#editor').setAttribute('closedby', 'none');
+$('#editor').addEventListener('keydown', event => {
+  if (event.key !== 'Escape') return;
+  event.preventDefault();
+  event.stopPropagation();
+  requestCloseEditor();
+});
+$('#keep-editing').onclick = () => $('#discard-dialog').close();
+$('#discard-editing').onclick = () => {$('#discard-dialog').close(); $('#editor').close();};
+$('#delete-button').onclick = () => {if (!state.editing) return; if (saving) {toast('저장 중입니다.'); return;} $('#delete-item-title').textContent = state.editing.title; $('#delete-dialog').showModal();};
 $('#cancel-delete').onclick = () => $('#delete-dialog').close();
 $('#confirm-delete').onclick = async () => {
   const button = $('#confirm-delete'); button.disabled = true;
@@ -486,7 +508,7 @@ document.addEventListener('keydown', event => {
   }
   if (event.ctrlKey && event.key.toLowerCase() === 'k') {event.preventDefault(); openSearch();}
   if (window.todoDesktop && event.ctrlKey && event.shiftKey && event.key.toLowerCase() === 'm') {event.preventDefault(); toggleCompact();}
-  if (!desktopCompact && event.ctrlKey && event.key.toLowerCase() === 'n') {event.preventDefault(); openEditor();}
+  if (!desktopCompact && event.ctrlKey && event.key.toLowerCase() === 'n') {event.preventDefault(); if (!document.querySelector('dialog[open]')) openEditor();}
 });
 initializeDesktop().then(refresh).catch(error => toast(error.message));
 window.addEventListener('focus', refresh);
