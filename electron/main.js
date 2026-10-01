@@ -324,7 +324,7 @@ function createWindow() {
 
 if (!app.requestSingleInstanceLock()) app.quit();
 else {
-  app.on('second-instance', () => {if (window) {window.show(); window.focus();}});
+  app.on('second-instance', () => {if (edgeWindow?.isVisible()) restoreFromEdge(); else if (window) {window.show(); window.focus();}});
   app.whenReady().then(async () => {
     if (process.platform === 'win32') app.setAppUserModelId('com.todotodo.desktop');
     dbPath = path.join(app.getPath('userData'), 'todotodo.db');
