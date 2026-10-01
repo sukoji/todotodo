@@ -337,6 +337,8 @@ dialog::backdrop { background: #283b4770; animation: backdrop-appear .25s ease-o
 .type-row input:checked+span { background: #fff0bd; border-color: var(--ink); color: var(--ink); }
 #toast { background: var(--ink); border: 1px solid #102532; box-shadow: 4px 5px 0 #10253233; }
 #toast.show { animation: toast-pop .4s cubic-bezier(.2,1.5,.4,1) both; pointer-events: auto; }
+#toast.show:not(:has(button)) { pointer-events: none; }
+.compact-app #toast { top: 54px; bottom: auto; max-width: calc(100vw - 26px); padding: 8px 12px; }
 #toast button { margin-left: 12px; padding: 4px 7px; border: 1px solid #ffffff88; border-radius: 5px; background: #ffffff20; color: #fff; font-size: 11px; font-weight: 750; }
 #toast button:hover { background: #ffffff38; }
 #toast button:disabled { opacity: .6; cursor: default; }
