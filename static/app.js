@@ -58,6 +58,7 @@ async function refresh() {
     const items = await api('/api/items'), today = localDate(new Date());
     if (today === renderedDate && JSON.stringify(items) === JSON.stringify(state.items)) return;
     state.items = items; renderedDate = today; render();
+    if ($('#editor').open) renderEditorConflicts();
     if ($('#search-dialog').open) renderSearch();
   }
   catch (error) { toast(error.message); }
@@ -195,15 +196,19 @@ function renderCalendar(items) {
     if (!byDate.has(item.date)) byDate.set(item.date, []);
     byDate.get(item.date).push(item);
   }
+  const conflictDays = new Set([...byDate].filter(([, entries]) => timeConflictPairs(entries).length).map(([day]) => day));
   $('#calendar-grid').innerHTML = Array.from({length:cells}, (_,index) => {
     const current = new Date(start.getFullYear(), start.getMonth(), start.getDate()+index), day = localDate(current);
     const matches = byDate.get(day) || [];
     const label = dayFormat.format(current);
-    return `<button class="calendar-day ${!week && current.getMonth() !== month ? 'outside' : ''} ${day === state.selectedDay ? 'selected' : ''} ${day === localDate(new Date()) ? 'today' : ''}" data-day="${day}" tabindex="${day === state.selectedDay ? 0 : -1}" aria-label="${label}, ${matches.length}개 항목" aria-pressed="${day === state.selectedDay}"><span class="day-number">${current.getDate()}</span>${matches.slice(0,2).map(item => `<span class="calendar-dot ${item.kind === 'event' ? 'event' : ''}">${week && item.time ? `<strong class="calendar-time">${escapeHTML(formatTime(item))}</strong>` : ''}${escapeHTML(item.title)}</span>`).join('')}${matches.length > 2 ? `<span class="calendar-more">+${matches.length-2}개 더</span>` : ''}</button>`;
+    return `<button class="calendar-day ${!week && current.getMonth() !== month ? 'outside' : ''} ${day === state.selectedDay ? 'selected' : ''} ${day === localDate(new Date()) ? 'today' : ''} ${conflictDays.has(day) ? 'has-time-conflict' : ''}" data-day="${day}" tabindex="${day === state.selectedDay ? 0 : -1}" aria-label="${label}, ${matches.length}개 항목${conflictDays.has(day) ? ', 시간 겹침' : ''}" aria-pressed="${day === state.selectedDay}"><span class="day-number">${current.getDate()}</span>${matches.slice(0,2).map(item => `<span class="calendar-dot ${item.kind === 'event' ? 'event' : ''}">${week && item.time ? `<strong class="calendar-time">${escapeHTML(formatTime(item))}</strong>` : ''}${escapeHTML(item.title)}</span>`).join('')}${matches.length > 2 ? `<span class="calendar-more">+${matches.length-2}개 더</span>` : ''}</button>`;
   }).join('');
   const selected = new Date(`${state.selectedDay}T12:00:00`);
   $('#selected-day-title').textContent = new Intl.DateTimeFormat('ko-KR',{month:'long',day:'numeric',weekday:'long'}).format(selected);
   const dayItems = [...(byDate.get(state.selectedDay) || [])].sort((a,b) => a.time.localeCompare(b.time));
+  const conflicts = timeConflictPairs(dayItems);
+  $('#calendar-conflicts').hidden = !conflicts.length;
+  $('#calendar-conflicts').innerHTML = conflicts.length ? `<strong>시간이 겹쳐요</strong><span>${conflicts.slice(0,2).map(([a,b]) => `${escapeHTML(a.title)} · ${escapeHTML(formatTime(a))} ↔ ${escapeHTML(b.title)} · ${escapeHTML(formatTime(b))}`).join('<br>')}${conflicts.length > 2 ? `<br>외 ${conflicts.length-2}쌍` : ''}</span>` : '';
   $('#selected-day-list').innerHTML = dayItems.length ? dayItems.map(item => row(item,false)).join('') : empty('이날의 일정이 없어요.');
 }
 function selectCalendarDay(day) {
@@ -246,6 +251,16 @@ function syncDateShortcuts() {
   const value = $('#editor-form').elements.date.value;
   document.querySelectorAll('[data-date-shortcut]').forEach(button => button.setAttribute('aria-pressed', String(value === shortcutDate(button.dataset.dateShortcut))));
 }
+function renderEditorConflicts() {
+  const form = $('#editor-form');
+  const candidate = {...Object.fromEntries(new FormData(form)), id: state.editing?.id || ''};
+  const matches = state.items.filter(item => timeOverlaps(candidate, item));
+  const notice = $('#editor-time-conflicts');
+  const wasHidden = notice.hidden;
+  notice.hidden = !matches.length;
+  notice.textContent = matches.length ? `시간이 겹쳐요: ${matches.slice(0,2).map(item => `${item.title} (${formatTime(item)})`).join(', ')}${matches.length > 2 ? ` 외 ${matches.length-2}개` : ''} · 겹쳐도 저장할 수 있어요.` : '';
+  if (matches.length && wasHidden && $('#editor').open) notice.scrollIntoView({block:'nearest', behavior:'smooth'});
+}
 function openEditor(kind = 'task', item = null) {
   state.editing = item;
   const form = $('#editor-form'); form.reset();
@@ -257,12 +272,14 @@ function openEditor(kind = 'task', item = null) {
   if (!item && kind === 'event') form.elements.date.value = state.selectedDay;
   if (!item && state.scope !== 'all') form.elements.scope.value = state.scope;
   syncDateShortcuts();
+  renderEditorConflicts();
   $('#dialog-title').textContent = item ? '항목 수정' : '새 항목 만들기';
   $('#delete-button').hidden = !item;
   editorBaseline = JSON.stringify([...new FormData(form)]);
   $('#editor').showModal();
   $('#pending-reminder').hidden = !pendingReminderId;
   form.elements.title.focus();
+  if (!$('#editor-time-conflicts').hidden) $('#editor-time-conflicts').scrollIntoView({block:'nearest'});
 }
 async function openReminderItem(itemId) {
   try {
@@ -422,10 +439,11 @@ $('#editor-form').addEventListener('submit', async event => {
   } catch(error) {if (error.status === 409) showConflict('save'); else toast(error.message);}
   finally {saving = false; saveButton.disabled = false;}
 });
-document.querySelectorAll('#editor-form input[name="kind"]').forEach(input => {input.onchange = syncStatusField;});
+document.querySelectorAll('#editor-form input[name="kind"]').forEach(input => {input.onchange = () => {syncStatusField(); renderEditorConflicts();};});
 document.querySelectorAll('[data-date-shortcut]').forEach(button => {
-  button.onclick = () => {const form = $('#editor-form'), date = form.elements.date; date.value = shortcutDate(button.dataset.dateShortcut); date.setCustomValidity(''); if (!date.value) {form.elements.time.value = ''; form.elements.end_time.value = '';} syncDateShortcuts();};
+  button.onclick = () => {const form = $('#editor-form'), date = form.elements.date; date.value = shortcutDate(button.dataset.dateShortcut); date.setCustomValidity(''); if (!date.value) {form.elements.time.value = ''; form.elements.end_time.value = '';} syncDateShortcuts(); renderEditorConflicts();};
 });
+$('#editor-form').addEventListener('input', event => {if (event.target.matches('[name="date"], [name="time"], [name="end_time"], [name="status"]')) renderEditorConflicts();});
 $('#editor-form').elements.date.oninput = event => {event.target.setCustomValidity(''); if (!event.target.value) {$('#editor-form').elements.time.value = ''; $('#editor-form').elements.end_time.value = '';} syncDateShortcuts();};
 $('#editor-form').elements.time.oninput = event => {event.target.setCustomValidity(''); if (!event.target.value) $('#editor-form').elements.end_time.value = ''; $('#editor-form').elements.end_time.setCustomValidity('');};
 $('#editor-form').elements.end_time.oninput = event => event.target.setCustomValidity('');
