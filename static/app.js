@@ -9,6 +9,8 @@ let saving = false;
 let compactSaving = false;
 let pendingAppClose = false;
 let pendingReminderId = null;
+let editorDraftKind = 'task';
+const editorDraftKey = 'todo-editor-drafts-v1';
 const kindName = {task: '할 일', event: '일정', idea: '아이디어'};
 const scopeName = {work: '업무', personal: '개인'};
 $('#dialog-title').insertAdjacentHTML('afterend', '<p id="pending-reminder" class="pending-reminder" role="status" hidden></p>');
@@ -273,6 +275,47 @@ function renderEditorConflicts() {
   notice.textContent = matches.length ? `시간이 겹쳐요: ${matches.slice(0,2).map(item => `${item.title} (${formatTime(item)})`).join(', ')}${matches.length > 2 ? ` 외 ${matches.length-2}개` : ''} · 겹쳐도 저장할 수 있어요.` : '';
   if (matches.length && wasHidden && $('#editor').open) notice.scrollIntoView({block:'nearest', behavior:'smooth'});
 }
+function editorDrafts() {
+  try {
+    const drafts = JSON.parse(localStorage.getItem(editorDraftKey));
+    return drafts && typeof drafts === 'object' && !Array.isArray(drafts) ? drafts : {};
+  }
+  catch {return {};}
+}
+function saveEditorDraft() {
+  if (state.editing || !$('#editor').open) return;
+  const form = $('#editor-form'), kind = form.elements.kind.value;
+  const drafts = editorDrafts();
+  const draft = Object.fromEntries(new FormData(form));
+  draft.status = form.elements.status.value;
+  const defaultScope = state.scope === 'all' ? 'personal' : state.scope;
+  if (![draft.title, draft.details, draft.tags, draft.time, draft.end_time].some(value => value?.trim()) &&
+      (!draft.date || (kind === 'event' && draft.date === state.selectedDay)) &&
+      draft.scope === defaultScope && draft.priority === 'normal' && draft.status === 'todo') {
+    clearEditorDraft(kind);
+    return;
+  }
+  drafts[kind] = draft;
+  localStorage.setItem(editorDraftKey, JSON.stringify(drafts));
+  editorDraftKind = kind;
+}
+function clearEditorDraft(kind) {
+  const drafts = editorDrafts();
+  delete drafts[kind];
+  if (Object.keys(drafts).length) localStorage.setItem(editorDraftKey, JSON.stringify(drafts));
+  else localStorage.removeItem(editorDraftKey);
+}
+function restoreEditorDraft(kind) {
+  const draft = editorDrafts()[kind];
+  if (draft && typeof draft === 'object') {
+    const form = $('#editor-form');
+    for (const key of ['title','details','date','time','end_time','scope','priority','status','tags']) {
+      if (typeof draft[key] === 'string') form.elements[key].value = draft[key];
+    }
+  }
+  $('#editor-draft-notice').hidden = !draft;
+  return Boolean(draft);
+}
 function openEditor(kind = 'task', item = null) {
   state.editing = item;
   const form = $('#editor-form'); form.reset();
@@ -283,6 +326,9 @@ function openEditor(kind = 'task', item = null) {
   syncStatusField();
   if (!item && kind === 'event') form.elements.date.value = state.selectedDay;
   if (!item && state.scope !== 'all') form.elements.scope.value = state.scope;
+  editorDraftKind = form.elements.kind.value;
+  $('#editor-draft-notice').hidden = Boolean(item);
+  if (!item) restoreEditorDraft(editorDraftKind);
   syncDateShortcuts();
   renderEditorConflicts();
   $('#dialog-title').textContent = item ? '항목 수정' : '새 항목 만들기';
@@ -442,6 +488,7 @@ $('#editor-form').addEventListener('submit', async event => {
     const created = !state.editing;
     if (!created) data.expected_revision = state.editing.revision;
     const saved = await api(created ? '/api/items' : `/api/items/${state.editing.id}`,{method:created ? 'POST' : 'PATCH',body:JSON.stringify(data)});
+    if (created) clearEditorDraft(form.elements.kind.value);
     $('#editor').close(); await refresh();
     if (created && state.view === 'tasks' && saved.kind === 'task') {
       const visible = state.taskFilter === 'all' || (state.taskFilter === 'open' && saved.status !== 'done') || state.taskFilter === saved.status;
@@ -451,11 +498,32 @@ $('#editor-form').addEventListener('submit', async event => {
   } catch(error) {if (error.status === 409) showConflict('save'); else toast(error.message);}
   finally {saving = false; saveButton.disabled = false;}
 });
-document.querySelectorAll('#editor-form input[name="kind"]').forEach(input => {input.onchange = () => {syncStatusField(); renderEditorConflicts();};});
+document.querySelectorAll('#editor-form input[name="kind"]').forEach(input => {input.onchange = () => {
+  if (!state.editing && editorDraftKind !== input.value) {
+    editorDraftKind = input.value;
+    restoreEditorDraft(input.value);
+  }
+  syncStatusField(); syncDateShortcuts(); renderEditorConflicts();
+  saveEditorDraft();
+};});
 document.querySelectorAll('[data-date-shortcut]').forEach(button => {
-  button.onclick = () => {const form = $('#editor-form'), date = form.elements.date; date.value = shortcutDate(button.dataset.dateShortcut); date.setCustomValidity(''); if (!date.value) {form.elements.time.value = ''; form.elements.end_time.value = '';} syncDateShortcuts(); renderEditorConflicts();};
+  button.onclick = () => {const form = $('#editor-form'), date = form.elements.date; date.value = shortcutDate(button.dataset.dateShortcut); date.setCustomValidity(''); if (!date.value) {form.elements.time.value = ''; form.elements.end_time.value = '';} syncDateShortcuts(); renderEditorConflicts(); saveEditorDraft();};
 });
 $('#editor-form').addEventListener('input', event => {if (event.target.matches('[name="date"], [name="time"], [name="end_time"], [name="status"]')) renderEditorConflicts();});
+$('#editor-form').addEventListener('input', event => {if (event.target.name !== 'kind') queueMicrotask(saveEditorDraft);});
+$('#editor-form').addEventListener('change', event => {if (event.target.tagName === 'SELECT') saveEditorDraft();});
+$('#clear-editor-draft').onclick = () => {
+  const kind = $('#editor-form').elements.kind.value;
+  clearEditorDraft(kind);
+  const form = $('#editor-form'); form.reset(); form.elements.kind.value = kind;
+  for (const key of ['date','time','end_time']) form.elements[key].setCustomValidity('');
+  if (kind === 'event') form.elements.date.value = state.selectedDay;
+  if (state.scope !== 'all') form.elements.scope.value = state.scope;
+  $('#editor-draft-notice').hidden = true;
+  syncStatusField(); syncDateShortcuts(); renderEditorConflicts();
+  editorBaseline = JSON.stringify([...new FormData(form)]);
+  form.elements.title.focus();
+};
 $('#editor-form').elements.date.oninput = event => {event.target.setCustomValidity(''); if (!event.target.value) {$('#editor-form').elements.time.value = ''; $('#editor-form').elements.end_time.value = '';} syncDateShortcuts();};
 $('#editor-form').elements.time.oninput = event => {event.target.setCustomValidity(''); if (!event.target.value) $('#editor-form').elements.end_time.value = ''; $('#editor-form').elements.end_time.setCustomValidity('');};
 $('#editor-form').elements.end_time.oninput = event => event.target.setCustomValidity('');
@@ -480,6 +548,7 @@ $('#discard-editing').onclick = () => {
   const closeApp = pendingAppClose;
   pendingAppClose = false;
   if (closeApp) {pendingReminderId = null; $('#pending-reminder').hidden = true;}
+  if (!state.editing) clearEditorDraft($('#editor-form').elements.kind.value);
   $('#discard-dialog').close();
   if ($('#editor').open) $('#editor').close();
   if (closeApp) confirmCloseApp();

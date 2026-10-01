@@ -60,6 +60,10 @@ body { color: var(--ink); background: var(--cream); }
 #editor .field input,#editor .field textarea,#editor .field select { min-height: 42px; font-size: 14px; color: var(--ink); }
 #editor .field textarea { line-height: 1.5; }
 #editor .type-row span { padding: 11px 3px; font-size: 12px; }
+.editor-draft-notice { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: -7px 0 16px; padding: 9px 11px; border: 1px solid #d6bc9d; border-radius: 9px; background: #fff5dc; color: var(--ink); font-size: 11px; line-height: 1.4; }
+.editor-draft-notice[hidden] { display: none; }
+.editor-draft-notice button { flex: none; border: 0; background: transparent; color: #755730; font: inherit; font-weight: 700; text-decoration: underline; cursor: pointer; }
+.editor-draft-notice button:focus-visible { outline: 2px solid #755730; outline-offset: 3px; }
 #editor .date-shortcuts button { min-height: 32px; font-size: 11px; }
 #editor .status-field legend,#editor .status-field span { font-size: 12px; }
 #editor .dialog-footer button { min-height: 38px; font-size: 12px; }
