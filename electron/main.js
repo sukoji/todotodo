@@ -12,7 +12,7 @@ app.setName('TodoTodo');
 let window, edgeWindow, edgeDisplayId, server, baseURL, authToken, dbPath, settingsPath, secretsPath, backupFolder, timer, backupTimer, boundsTimer, movingByApp = false, backupRunning = false, rendererReady = false, closeApproved = false;
 let pendingReminderId = null;
 let backupState = {lastAt: null, count: 0};
-const defaults = {alwaysOnTop: false, opacity: 100, notifications: true, reminderMinutes: 10, compact: false, edgeSide: 'right', normalBounds: {}, compactBounds: {}, lastDisplayId: null, reminderHistory: {}};
+const defaults = {alwaysOnTop: false, opacity: 100, notifications: true, reminderMinutes: 10, compact: false, edgeSide: 'right', edgeY: {}, normalBounds: {}, compactBounds: {}, lastDisplayId: null, reminderHistory: {}};
 let settings = {...defaults};
 
 function saveSettings() {
@@ -24,6 +24,7 @@ function loadSettings() {
     const data = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
     settings = {...defaults, ...data};
   } catch { settings = {...defaults}; }
+  if (!settings.edgeY || typeof settings.edgeY !== 'object' || Array.isArray(settings.edgeY)) settings.edgeY = {};
   settings.reminderHistory = pruneReminderHistory(settings.reminderHistory, Date.now());
 }
 
@@ -136,15 +137,34 @@ function positionEdge() {
   const display = screen.getAllDisplays().find(item => item.id === edgeDisplayId) || screen.getPrimaryDisplay();
   edgeDisplayId = display.id;
   const area = display.workArea;
-  const x = settings.edgeSide === 'left' ? area.x : area.x + area.width - 48;
-  edgeWindow.setBounds({x, y: area.y + Math.round((area.height - 88) / 2), width: 48, height: 88});
+  const x = settings.edgeSide === 'left' ? area.x : area.x + area.width - 42;
+  const fraction = settings.edgeY?.[String(display.id)];
+  const y = area.y + Math.round((Number.isFinite(fraction) ? Math.max(0, Math.min(1, fraction)) : .5) * Math.max(0, area.height - 64));
+  const target = {x, y, width: 42, height: 64};
+  if (JSON.stringify(edgeWindow.getBounds()) !== JSON.stringify(target)) edgeWindow.setBounds(target);
+}
+
+function moveEdge(y) {
+  if (!edgeWindow || edgeWindow.isDestroyed() || !edgeWindow.isVisible() || !Number.isFinite(y)) return;
+  const display = screen.getAllDisplays().find(item => item.id === edgeDisplayId) || screen.getPrimaryDisplay();
+  const area = display.workArea;
+  edgeWindow.setPosition(edgeWindow.getBounds().x, Math.max(area.y, Math.min(Math.round(y), area.y + area.height - 64)));
+}
+
+function rememberEdgePosition() {
+  if (!edgeWindow || edgeWindow.isDestroyed()) return;
+  const display = screen.getAllDisplays().find(item => item.id === edgeDisplayId) || screen.getPrimaryDisplay();
+  const area = display.workArea;
+  const fraction = (edgeWindow.getBounds().y - area.y) / Math.max(1, area.height - 64);
+  settings.edgeY[String(display.id)] = Math.max(0, Math.min(1, fraction));
+  saveSettings();
 }
 
 function foldToEdge() {
   edgeDisplayId = currentDisplay().id;
   if (!edgeWindow || edgeWindow.isDestroyed()) {
     edgeWindow = new BrowserWindow({
-      width: 48, height: 88, frame: false, transparent: true, resizable: false,
+      width: 42, height: 64, frame: false, transparent: true, resizable: false,
       alwaysOnTop: true, skipTaskbar: true, show: false,
       webPreferences: {preload: path.join(__dirname, 'edge-preload.js'), contextIsolation: true, nodeIntegration: false, sandbox: true}
     });
@@ -385,6 +405,8 @@ else {
     ipcMain.handle('todo:fold', event => {verifySender(event); foldToEdge(); return true;});
     ipcMain.handle('edge:restore', event => {if (!edgeWindow || event.sender !== edgeWindow.webContents) throw new Error('허용되지 않은 요청입니다.'); restoreFromEdge();});
     ipcMain.handle('edge:side', event => {if (!edgeWindow || event.sender !== edgeWindow.webContents) throw new Error('허용되지 않은 요청입니다.'); return settings.edgeSide;});
+    ipcMain.on('edge:move', (event, y) => {if (edgeWindow && event.sender === edgeWindow.webContents) moveEdge(y);});
+    ipcMain.on('edge:drop', event => {if (edgeWindow && event.sender === edgeWindow.webContents) rememberEdgePosition();});
     ipcMain.handle('todo:export', async event => {
       verifySender(event);
       const result = await dialog.showSaveDialog(window, {title: 'TodoTodo 백업', defaultPath: `todotodo-backup-${new Date().toISOString().slice(0, 10)}.json`, filters: [{name: 'JSON', extensions: ['json']}]});
