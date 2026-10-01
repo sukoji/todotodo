@@ -100,13 +100,24 @@ function render() {
 }
 function renderCompact(items) {
   const today = localDate(new Date());
-  const active = openItems(items.filter(item => item.kind === 'task' || item.kind === 'event'));
+  const visible = items.filter(item => item.scope === $('#compact-scope').value);
+  const list = $('#compact-list'), scrollTop = list.scrollTop;
+  if (compactKind === 'idea') {
+    const ideas = openItems(visible.filter(item => item.kind === 'idea')).sort((a,b) => b.updated_at.localeCompare(a.updated_at));
+    const recent = ideas.slice(0, 30);
+    $('.compact-caption strong').textContent = '최근 아이디어';
+    $('#compact-count').textContent = ideas.length > 30 ? '최근 30개' : `${ideas.length}개 메모`;
+    list.innerHTML = recent.length ? recent.map(item => `<div class="compact-row compact-idea-row"><span class="compact-idea-mark" aria-hidden="true">✦</span><button class="compact-title" data-compact-edit="${item.id}"><strong>${escapeHTML(item.title)}</strong>${item.details ? `<small>${escapeHTML(item.details.trim().slice(0, 60))}</small>` : ''}</button></div>`).join('') : '<div class="compact-empty">떠오른 생각을 한 줄 적어보세요 ✦</div>';
+    list.scrollTop = scrollTop;
+    return;
+  }
+  $('.compact-caption strong').textContent = '오늘의 작은 메모';
+  const active = openItems(visible.filter(item => item.kind === 'task' || item.kind === 'event'));
   const candidates = active.filter(item => !item.date || item.date <= today).sort((a,b) => {
     const rank = item => item.date && item.date < today ? 0 : item.date === today ? 1 : 2;
     return rank(a) - rank(b) || Number(b.status === 'doing') - Number(a.status === 'doing') || (a.time || '99:99').localeCompare(b.time || '99:99');
   });
   $('#compact-count').textContent = `${candidates.length}개 남음`;
-  const list = $('#compact-list'), scrollTop = list.scrollTop;
   list.innerHTML = candidates.length ? candidates.map(item => `<div class="compact-row"><button class="check-button" data-complete="${item.id}" aria-label="완료"></button><button class="compact-title" data-compact-edit="${item.id}">${escapeHTML(item.title)}</button><small>${scopeName[item.scope]}${item.time ? ` · ${escapeHTML(item.time)}` : ''}</small></div>`).join('') : '<div class="compact-empty">오늘은 여유로운 페이지예요 ☀</div>';
   list.scrollTop = scrollTop;
 }
@@ -551,6 +562,8 @@ function setCompactKind(kind) {
   $('#compact-input').placeholder = `${label}…`;
   $('#compact-input').setAttribute('aria-label', label);
   syncCompactDraftIndicator();
+  $('#compact-list').scrollTop = 0;
+  renderCompact(state.items);
 }
 function restoreCompactDraft() {
   try {
@@ -563,7 +576,7 @@ function restoreCompactDraft() {
 $('#compact-button').onclick = () => toggleCompact(true);
 $('#expand-button').onclick = () => toggleCompact(false);
 $('#compact-input').addEventListener('input', syncCompactDraftIndicator);
-$('#compact-scope').addEventListener('change', syncCompactDraftIndicator);
+$('#compact-scope').addEventListener('change', () => {syncCompactDraftIndicator(); $('#compact-list').scrollTop = 0; renderCompact(state.items);});
 document.querySelectorAll('[data-compact-kind]').forEach(button => {button.onclick = () => setCompactKind(button.dataset.compactKind);});
 $('#fold-button').onclick = $('#compact-fold').onclick = async () => {try {await window.todoDesktop.fold();} catch(error) {toast(error.message);}};
 document.querySelectorAll('[data-window-action]').forEach(button => {

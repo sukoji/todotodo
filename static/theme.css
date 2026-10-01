@@ -178,6 +178,10 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .compact-title { border: 0; padding: 0; background: transparent; min-width: 0; flex: 1; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); font-size: 12px; font-weight: 650; }
 .compact-title:hover { text-decoration: underline; }
 .compact-row small { flex: none; white-space: nowrap; color: #b18e74; font-size: 10px; }
+.compact-idea-mark { flex: none; display: grid; place-items: center; width: 24px; height: 24px; border: 1px solid #a7c6bc; border-radius: 7px; background: #e7f2ec; color: #4e9b85; font-size: 14px; }
+.compact-idea-row .compact-title { display: flex; flex-direction: column; gap: 2px; padding: 7px 0; }
+.compact-idea-row .compact-title strong,.compact-idea-row .compact-title small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.compact-idea-row .compact-title small { color: #8c918b; font-size: 10px; font-weight: 400; }
 .compact-empty { display: grid; place-items: center; height: 100%; color: #9b8c7b; font-size: 10px; }
 .compact-kind-switch { display: flex; gap: 4px; margin: 4px 0 7px; }
 .compact-kind-switch button { min-height: 27px; padding: 3px 9px; border: 1px solid transparent; border-radius: 7px; background: transparent; color: #8b7869; font-size: 10px; font-weight: 700; }
