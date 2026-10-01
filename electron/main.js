@@ -9,7 +9,7 @@ const {dueReminder, pruneReminderHistory} = require('./reminders');
 
 const root = path.resolve(__dirname, '..');
 app.setName('TodoTodo');
-let window, edgeWindow, edgeDisplayId, server, baseURL, authToken, dbPath, settingsPath, secretsPath, backupFolder, timer, backupTimer, boundsTimer, movingByApp = false, backupRunning = false, rendererReady = false, closeApproved = false, quitting = false;
+let window, edgeWindow, edgeDisplayId, server, baseURL, authToken, dbPath, settingsPath, secretsPath, backupFolder, timer, backupTimer, boundsTimer, movingByApp = false, resizeGeneration = 0, backupRunning = false, rendererReady = false, closeApproved = false, quitting = false;
 let pendingReminderId = null;
 let backupState = {lastAt: null, count: 0};
 const defaults = {alwaysOnTop: false, opacity: 100, notifications: true, reminderMinutes: 10, compact: false, edgeSide: 'right', edgeY: {}, normalBounds: {}, compactBounds: {}, lastDisplayId: null, reminderHistory: {}};
@@ -87,12 +87,13 @@ function rememberBounds() {
 
 function resizeWindow(target) {
   const start = window.getBounds();
+  const generation = ++resizeGeneration;
   const reduced = systemPreferences.getAnimationSettings().prefersReducedMotion;
   movingByApp = true;
   if (reduced) {window.setBounds(target); movingByApp = false; rememberBounds(); return;}
   const started = Date.now();
   const tick = () => {
-    if (!window || window.isDestroyed()) return;
+    if (generation !== resizeGeneration || !window || window.isDestroyed()) return;
     const t = Math.min(1, (Date.now() - started) / 280);
     const eased = 1 - Math.pow(1 - t, 3);
     const value = key => Math.round(start[key] + (target[key] - start[key]) * eased);
@@ -108,7 +109,7 @@ function setCompact(value) {
   if (value === settings.compact) return settings;
   const display = currentDisplay(), id = String(display.id), area = display.workArea;
   const oldKey = settings.compact ? 'compactBounds' : 'normalBounds';
-  if (!window.isMaximized()) settings[oldKey][id] = window.getBounds();
+  if (!window.isMaximized() && !movingByApp) settings[oldKey][id] = window.getBounds();
   settings.compact = value;
   const saved = settings[value ? 'compactBounds' : 'normalBounds'][id];
   const fallback = value
