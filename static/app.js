@@ -122,6 +122,17 @@ function render() {
   else if (state.view === 'calendar') renderCalendar(items);
   if (focusId && !focused.isConnected) focusArea?.querySelector(`[data-${focusType}="${focusId}"]`)?.focus({preventScroll:true});
 }
+function focusAfterRemoval(key, id, source) {
+  const area = desktopCompact ? $('.compact-shell') : $('.view.active');
+  const original = source || [...area.querySelectorAll(`[data-${key}]`)].find(control => control.dataset[key] === id);
+  const container = original?.closest('.item-row, .compact-row, .idea-card')?.parentElement;
+  const index = original && container ? [...container.querySelectorAll(`[data-${key}]`)].indexOf(original) : 0;
+  const fallback = desktopCompact ? $('#compact-input') : area.querySelector('[data-new]') || $('.nav-item.active, .settings-link.active');
+  return () => {
+    const controls = [...(container?.querySelectorAll(`[data-${key}]`) || [])];
+    (controls.find(control => control.dataset[key] === id) || controls[Math.min(index, controls.length - 1)] || fallback)?.focus();
+  };
+}
 function renderCompact(items) {
   const today = localDate(new Date());
   const visible = items.filter(item => item.scope === $('#compact-scope').value);
@@ -558,6 +569,7 @@ document.addEventListener('click', async event => {
   const complete = event.target.closest('[data-complete]'); if (complete) {
     const item = state.items.find(entry => entry.id === complete.dataset.complete);
     const rowElement = complete.closest('.item-row, .compact-row');
+    const restoreFocus = focusAfterRemoval('complete', item.id, complete);
     complete.disabled = true;
     if (item.status !== 'done' && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
       complete.classList.add('done'); complete.textContent = '✓';
@@ -567,10 +579,12 @@ document.addEventListener('click', async event => {
     try {
       const saved = await api(`/api/items/${item.id}`,{method:'PATCH',body:JSON.stringify({status:item.status === 'done' ? 'todo' : 'done',expected_revision:item.revision})});
       await refresh();
+      restoreFocus();
       if (item.status !== 'done') toast('완료했어요', {label: '되돌리기', run: async () => {
         try {
           await api(`/api/items/${item.id}`, {method:'PATCH', body:JSON.stringify({status:item.status, expected_revision:saved.revision})});
           await refresh();
+          restoreFocus();
           toast('다시 할 일에 넣었어요');
         } catch (error) {
           if (error.status === 409) await refresh();
@@ -728,15 +742,17 @@ $('#delete-button').onclick = () => {
 $('#cancel-delete').onclick = () => $('#delete-dialog').close();
 $('#confirm-delete').onclick = async () => {
   const button = $('#confirm-delete'); button.disabled = true;
-  try {await api(`/api/items/${state.editing.id}`,{method:'DELETE',body:JSON.stringify({expected_revision:state.editing.revision})}); $('#delete-dialog').close(); $('#editor').close(); toast('삭제했습니다.'); await refresh();}
+  const restoreFocus = focusAfterRemoval('edit', state.editing.id);
+  try {await api(`/api/items/${state.editing.id}`,{method:'DELETE',body:JSON.stringify({expected_revision:state.editing.revision})}); $('#delete-dialog').close(); $('#editor').close(); toast('삭제했습니다.'); await refresh(); restoreFocus();}
   catch(error) {if (error.status === 409) {$('#delete-dialog').close(); showConflict('delete');} else toast(error.message);}
   finally {button.disabled = false;}
 };
 $('#delete-future').onclick = async () => {
   const button = $('#delete-future'); button.disabled = true;
+  const restoreFocus = focusAfterRemoval('edit', state.editing.id);
   try {
     const result = await api(`/api/items/${state.editing.id}`, {method:'DELETE', body:JSON.stringify({expected_revision:state.editing.revision, future:true})});
-    $('#delete-dialog').close(); $('#editor').close(); await refresh();
+    $('#delete-dialog').close(); $('#editor').close(); await refresh(); restoreFocus();
     toast(`${result.deleted}개 반복 기록을 삭제했습니다.`);
   } catch(error) {if (error.status === 409) {$('#delete-dialog').close(); showConflict('delete-future');} else toast(error.message);}
   finally {button.disabled = false;}
@@ -754,8 +770,10 @@ $('#conflict-force').onclick = async () => {
   const button = $('#conflict-force'); button.disabled = true;
   try {
     const itemId = state.editing.id, deleting = conflictAction === 'delete' || conflictAction === 'delete-future';
+    const restoreFocus = deleting ? focusAfterRemoval('edit', itemId) : null;
     await api(`/api/items/${itemId}`,{method:deleting ? 'DELETE' : 'PATCH',body:deleting ? JSON.stringify({future:conflictAction === 'delete-future'}) : JSON.stringify(editorPayload())});
     $('#conflict-dialog').close(); $('#editor').close(); await refresh();
+    restoreFocus?.();
     toast(deleting ? '삭제했습니다.' : '내 내용으로 저장했습니다.');
   } catch(error) {toast(error.message);}
   finally {button.disabled = false;}
