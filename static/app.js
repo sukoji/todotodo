@@ -7,8 +7,10 @@ let editorBaseline = '';
 let saving = false;
 let compactSaving = false;
 let pendingAppClose = false;
+let pendingReminderId = null;
 const kindName = {task: '할 일', event: '일정', idea: '아이디어'};
 const scopeName = {work: '업무', personal: '개인'};
+$('#dialog-title').insertAdjacentHTML('afterend', '<p id="pending-reminder" class="pending-reminder" role="status" hidden></p>');
 
 function localDate(value) {
   const d = new Date(value);
@@ -241,7 +243,30 @@ function openEditor(kind = 'task', item = null) {
   $('#delete-button').hidden = !item;
   editorBaseline = JSON.stringify([...new FormData(form)]);
   $('#editor').showModal();
+  $('#pending-reminder').hidden = !pendingReminderId;
   form.elements.title.focus();
+}
+async function openReminderItem(itemId) {
+  try {
+    const items = await api('/api/items');
+    state.items = items; renderedDate = localDate(new Date()); render();
+    const item = items.find(entry => entry.id === itemId);
+    if (!item) {toast('알림의 기록을 찾을 수 없어요'); return;}
+    if ($('#editor').open && editorHasChanges()) {
+      pendingReminderId = itemId;
+      $('#pending-reminder').textContent = `${item.title} · 편집을 마치면 열어요`;
+      $('#pending-reminder').hidden = false;
+      return;
+    }
+    document.querySelectorAll('dialog[open]').forEach(dialog => dialog.close());
+    state.scope = item.scope;
+    document.querySelectorAll('[data-scope]').forEach(el => el.classList.toggle('selected', el.dataset.scope === item.scope));
+    render();
+    if (item.kind === 'event') {setView('calendar'); if (item.date) selectCalendarDay(item.date);}
+    else if (item.kind === 'task') {setView('tasks'); setTaskFilter('all');}
+    else setView('ideas');
+    openEditor(item.kind, item);
+  } catch(error) {toast(error.message);}
 }
 function requestCloseEditor() {
   if (saving) {toast('저장 중입니다.'); return;}
@@ -376,6 +401,13 @@ document.querySelectorAll('[data-date-shortcut]').forEach(button => {
 $('#editor-form').elements.date.oninput = event => {event.target.setCustomValidity(''); syncDateShortcuts();};
 $('#close-dialog').onclick = $('#cancel-button').onclick = requestCloseEditor;
 $('#editor').setAttribute('closedby', 'none');
+$('#editor').addEventListener('close', () => {
+  if (!pendingReminderId || $('#editor').open) return;
+  const itemId = pendingReminderId;
+  pendingReminderId = null;
+  $('#pending-reminder').hidden = true;
+  openReminderItem(itemId);
+});
 $('#editor').addEventListener('keydown', event => {
   if (event.key !== 'Escape') return;
   event.preventDefault();
@@ -387,6 +419,7 @@ $('#discard-dialog').addEventListener('cancel', () => {pendingAppClose = false;}
 $('#discard-editing').onclick = () => {
   const closeApp = pendingAppClose;
   pendingAppClose = false;
+  if (closeApp) {pendingReminderId = null; $('#pending-reminder').hidden = true;}
   $('#discard-dialog').close();
   if ($('#editor').open) $('#editor').close();
   if (closeApp) confirmCloseApp();
@@ -529,6 +562,7 @@ async function initializeDesktop() {
   if (!window.todoDesktop) return;
   document.body.classList.add('desktop-app');
   window.todoDesktop.onCloseRequested(requestCloseApp);
+  window.todoDesktop.onReminderOpened(openReminderItem);
   const preferences = await window.todoDesktop.state();
   $('#export-button').closest('.connect-panel').querySelector('.backup-actions').insertAdjacentHTML('afterend', '<div class="auto-backup-block"><p id="auto-backup-status" role="status" aria-live="polite"></p><div class="auto-backup-actions"><button class="subtle-button" id="backup-now" type="button">지금 백업</button><button class="subtle-button" id="open-backup-folder" type="button">백업 폴더 열기 ↗</button></div><small>앱을 켜 둔 동안 30분마다 확인하고 최근 7일분을 보관합니다.</small></div>');
   const showBackupStatus = status => {
@@ -608,6 +642,7 @@ async function initializeDesktop() {
     finally {button.disabled = false; button.textContent = '✳ AI에게 오늘의 순서 묻기';}
   };
   updateKeyStatus();
+  if (preferences.reminderId) await openReminderItem(preferences.reminderId);
 }
 $('#close-ai-result').onclick = $('#done-ai-result').onclick = () => $('#ai-result').close();
 $('#copy-ai-result').onclick = async () => {try {await navigator.clipboard.writeText($('#ai-result-text').textContent); toast('내용을 복사했습니다.');} catch {toast('복사할 수 없습니다.');}};

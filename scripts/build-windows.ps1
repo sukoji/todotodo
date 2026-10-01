@@ -20,4 +20,6 @@ npx electron-builder --win nsis
 if ($LASTEXITCODE -ne 0) { throw 'Installer build failed.' }
 npx electron-builder --win portable
 if ($LASTEXITCODE -ne 0) { throw 'Portable build failed.' }
+npx electron-builder --win zip
+if ($LASTEXITCODE -ne 0) { throw 'ZIP build failed.' }
 Copy-Item -LiteralPath 'build/backend/todotodo-claude-win.mcpb' -Destination 'release/todotodo-claude-win.mcpb' -Force

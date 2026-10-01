@@ -54,6 +54,8 @@ body { color: var(--ink); background: var(--cream); }
 .search-result small { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 10px; }
 .search-empty { padding: 23px 12px 30px; color: var(--muted); font-size: 11px; text-align: center; }
 #editor { max-height: calc(100vh - 24px); overflow-y: auto; }
+.pending-reminder { max-width: 360px; margin: 9px 0 0; padding: 7px 9px; border: 1px solid #d6bc9d; border-radius: 7px; background: #fff0cd; color: var(--ink); font-size: 11px; line-height: 1.5; overflow-wrap: anywhere; }
+.pending-reminder[hidden] { display: none; }
 #editor .dialog-footer { position: sticky; bottom: -25px; z-index: 1; margin: 20px -27px -25px; padding: 12px 27px 20px; border-top: 1px solid var(--line); background: #fffdf7; }
 .status-field { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; margin: 13px 0 2px; padding: 0; border: 0; }
 .status-field[hidden] { display: none; }

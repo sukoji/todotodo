@@ -10,6 +10,7 @@ const {dueReminder, pruneReminderHistory} = require('./reminders');
 const root = path.resolve(__dirname, '..');
 app.setName('TodoTodo');
 let window, edgeWindow, edgeDisplayId, server, baseURL, authToken, dbPath, settingsPath, secretsPath, backupFolder, timer, backupTimer, boundsTimer, movingByApp = false, backupRunning = false, rendererReady = false, closeApproved = false;
+let pendingReminderId = null;
 let backupState = {lastAt: null, count: 0};
 const defaults = {alwaysOnTop: false, opacity: 100, notifications: true, reminderMinutes: 10, compact: false, edgeSide: 'right', normalBounds: {}, compactBounds: {}, lastDisplayId: null, reminderHistory: {}};
 let settings = {...defaults};
@@ -256,7 +257,13 @@ async function checkReminders() {
       const reminder = dueReminder(item, now, settings.reminderMinutes);
       if (reminder && !settings.reminderHistory[reminder.key]) {
         const notice = new Notification({title: item.title, body: reminder.body});
-        notice.on('click', () => {if (edgeWindow?.isVisible()) restoreFromEdge(); else {window.show(); window.focus();}});
+        notice.on('click', () => {
+          if (edgeWindow?.isVisible()) restoreFromEdge();
+          else {if (window.isMinimized()) window.restore(); window.show(); window.focus();}
+          if (settings.compact) setCompact(false);
+          if (rendererReady) window.webContents.send('todo:reminder-open', item.id);
+          else pendingReminderId = item.id;
+        });
         notice.show();
         settings.reminderHistory = pruneReminderHistory(settings.reminderHistory, now);
         settings.reminderHistory[reminder.key] = now;
@@ -339,10 +346,12 @@ else {
     ipcMain.handle('todo:state', event => {
       verifySender(event);
       rendererReady = true;
+      const reminderId = pendingReminderId;
+      pendingReminderId = null;
       const mcpConfig = app.isPackaged
         ? {command: agentExecutable(), args: [], env: {TODOTODO_DB: dbPath}}
         : {command: 'uv', args: ['run', '--with', 'mcp>=2,<3', 'python', 'mcp_server.py'], cwd: root, env: {TODOTODO_DB: dbPath}};
-      return {...settings, dbPath, mcpConfig, backup: backupState, claudeBundleAvailable: app.isPackaged};
+      return {...settings, dbPath, mcpConfig, backup: backupState, claudeBundleAvailable: app.isPackaged, reminderId};
     });
     ipcMain.handle('todo:backup-folder', async event => {
       verifySender(event);

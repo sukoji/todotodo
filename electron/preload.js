@@ -17,5 +17,6 @@ contextBridge.exposeInMainWorld('todoDesktop', {
   fold: () => ipcRenderer.invoke('todo:fold'),
   windowControl: action => ipcRenderer.invoke('todo:window-control', action),
   onCloseRequested: callback => ipcRenderer.on('todo:close-request', () => callback()),
+  onReminderOpened: callback => ipcRenderer.on('todo:reminder-open', (_event, itemId) => callback(itemId)),
   onCompactChanged: callback => ipcRenderer.on('todo:compact', (_event, value) => callback(value))
 });
