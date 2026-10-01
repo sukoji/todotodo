@@ -106,7 +106,8 @@ function render() {
     const overdue = openItems(items.filter(item => item.kind === 'task' && item.date && item.date < today)).sort((a,b) => b.date.localeCompare(a.date));
     $('#overdue-section').hidden = overdue.length === 0;
     $('#overdue-count').textContent = `${overdue.length}개`;
-    $('#overdue-list').innerHTML = overdue.map(item => row(item, true, true)).join('');
+    $('#overdue-list').innerHTML = overdue.slice(0,5).map(item => row(item, true, true)).join('');
+    $('#overdue-all').hidden = overdue.length <= 5;
     const upcoming = openItems(items.filter(item => item.date > today)).sort((a,b) => (a.date+a.time).localeCompare(b.date+b.time)).slice(0, 3);
     $('#upcoming-list').innerHTML = upcoming.length ? upcoming.map(item => row(item)).join('') : empty('다가오는 일정이 없어요.');
   }
@@ -141,19 +142,21 @@ function renderCompact(items) {
 }
 function renderTasks(items) {
   let results = items.filter(item => item.kind === 'task');
+  const today = localDate(new Date());
   if (state.taskFilter === 'open') results = openItems(results);
+  else if (state.taskFilter === 'overdue') results = results.filter(item => item.status !== 'done' && item.date && item.date < today);
   else if (state.taskFilter === 'doing') results = results.filter(item => item.status === 'doing');
   else if (state.taskFilter === 'done') results = results.filter(item => item.status === 'done');
   const visibleCount = Math.min(taskLimit, results.length);
   $('#task-total').textContent = `${results.length}개 항목${visibleCount < results.length ? ` · ${visibleCount}개 표시` : ''}`;
-  const emptyText = state.taskFilter === 'doing' ? '지금 진행 중인 일이 없어요.<br>시작할 일을 골라보세요.' : state.taskFilter === 'done' ? '아직 완료한 일이 없어요.' : '아직 할 일이 없어요.<br>첫 번째 할 일을 추가해 보세요.';
+  const emptyText = state.taskFilter === 'overdue' ? '지난 날짜에 남은 일이 없어요.' : state.taskFilter === 'doing' ? '지금 진행 중인 일이 없어요.<br>시작할 일을 골라보세요.' : state.taskFilter === 'done' ? '아직 완료한 일이 없어요.' : '아직 할 일이 없어요.<br>첫 번째 할 일을 추가해 보세요.';
   if (!results.length) {$('#tasks-list').innerHTML = empty(emptyText); return;}
   const more = visibleCount < results.length ? `<button class="task-more" id="task-more" type="button">다음 50개 보기 <span>${results.length-visibleCount}개 남음</span></button>` : '';
   if (state.taskFilter === 'done') {
     $('#tasks-list').innerHTML = results.sort((a,b) => b.updated_at.localeCompare(a.updated_at)).slice(0,visibleCount).map(item => row(item)).join('') + more;
     return;
   }
-  const today = localDate(new Date()), active = openItems(results);
+  const active = openItems(results);
   const byTime = (a,b) => (a.time || '99:99').localeCompare(b.time || '99:99');
   const groups = [
     ['오늘', active.filter(item => item.date === today).sort(byTime)],
@@ -495,6 +498,7 @@ document.addEventListener('click', async event => {
   }
   const view = event.target.closest('[data-view]'); if (view) return setView(view.dataset.view);
   const create = event.target.closest('[data-new]'); if (create) return openEditor(create.dataset.new);
+  if (event.target.closest('#overdue-all')) {setView('tasks'); setTaskFilter('overdue'); document.querySelector('[data-filter="overdue"]').focus(); return;}
   const scope = event.target.closest('[data-scope]'); if (scope) {state.scope = scope.dataset.scope; taskLimit = 50; if (state.scope !== 'all') {$('#compact-scope').value = state.scope; syncCompactDraftIndicator();} document.querySelectorAll('[data-scope]').forEach(el => {const selected = el === scope; el.classList.toggle('selected', selected); el.setAttribute('aria-pressed', String(selected));}); return render();}
   const filter = event.target.closest('[data-filter]'); if (filter) return setTaskFilter(filter.dataset.filter);
   if (event.target.closest('#task-more')) {const previous = $('#tasks-list').querySelectorAll('.item-row').length; taskLimit += 50; render(); ($('#tasks-list').querySelectorAll('.item-row')[previous]?.querySelector('[data-edit]') || $('#task-more'))?.focus(); return;}
