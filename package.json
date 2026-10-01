@@ -1,13 +1,13 @@
 {
   "name": "todotodo-desktop",
-  "version": "0.1.63",
+  "version": "0.1.64",
   "private": true,
   "author": "Sukojin",
   "description": "Desktop tasks, schedule and ideas with MCP integration",
   "main": "electron/main.js",
   "scripts": {
     "start": "electron .",
-    "check": "node --check electron/main.js && node --check electron/preload.js && node --check electron/edge-preload.js && node --check electron/ai.js && node --check electron/backup.js && node --check electron/reminders.js && node --check static/app.js && node --check static/schedule-conflicts.js && node --check static/edge.js && node --test tests/ai.test.js tests/backup.test.js tests/reminders.test.js tests/calendar.test.js && uv run python -m unittest discover -s tests -v",
+    "check": "node --check electron/main.js && node --check electron/preload.js && node --check electron/edge-preload.js && node --check electron/ai.js && node --check electron/backup.js && node --check electron/reminders.js && node --check electron/codex.js && node --check static/app.js && node --check static/schedule-conflicts.js && node --check static/edge.js && node --test tests/ai.test.js tests/backup.test.js tests/reminders.test.js tests/calendar.test.js tests/codex.test.js && uv run python -m unittest discover -s tests -v",
     "build:win": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-windows.ps1"
   },
   "devDependencies": {

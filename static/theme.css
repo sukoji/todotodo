@@ -319,6 +319,8 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .connection-tabs button { border: 1px solid var(--line); background: #fff; color: var(--muted); border-radius: 7px; padding: 6px 10px; font-size: 10px; font-weight: 700; }
 .connection-tabs button.selected { border-color: var(--ink); background: #f8e9bd; color: var(--ink); }
 .connection-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
+.connection-actions [hidden] { display: none; }
+.connect-panel .connection-help { margin: 0 0 12px; color: #59766d; }
 .bundle-button { margin-left: 0; }
 .ai-brief-button { display: inline-flex; align-items: center; gap: 4px; border: 1px solid #c6dcd2; background: #e7f2ec; border-radius: 999px; color: var(--ink); font-size: 10px; font-weight: 700; padding: 7px 11px; margin-top: 11px; transition: transform .25s cubic-bezier(.2,1.5,.4,1),background .2s; }
 .ai-brief-button[hidden] { display: none; }

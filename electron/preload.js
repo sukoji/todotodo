@@ -13,6 +13,7 @@ contextBridge.exposeInMainWorld('todoDesktop', {
   aiKey: (provider, key) => ipcRenderer.invoke('todo:ai-key', provider, key),
   aiBrief: (provider, scope) => ipcRenderer.invoke('todo:ai-brief', provider, scope),
   claudeBundle: () => ipcRenderer.invoke('todo:claude-bundle'),
+  connectCodex: () => ipcRenderer.invoke('todo:connect-codex'),
   compact: value => ipcRenderer.invoke('todo:compact', value),
   fold: () => ipcRenderer.invoke('todo:fold'),
   windowControl: action => ipcRenderer.invoke('todo:window-control', action),

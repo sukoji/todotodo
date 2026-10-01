@@ -948,18 +948,38 @@ async function initializeDesktop() {
   $('#mcp-command').insertAdjacentHTML('beforebegin', '<div class="connection-tabs"><button class="selected" id="claude-config-tab">Claude Desktop</button><button id="codex-config-tab">Codex</button></div>');
   $('#mcp-command').insertAdjacentHTML('beforebegin', '<div class="connection-actions"></div>');
   $('.connection-actions').append($('#copy-command'));
+  $('#mcp-command').insertAdjacentHTML('afterend', '<p class="connection-help" role="status"></p>');
   const showConfig = mode => {
     $('#mcp-command').textContent = mode === 'codex' ? toml : JSON.stringify(config,null,2);
     $('#claude-config-tab').classList.toggle('selected',mode === 'claude');
     $('#codex-config-tab').classList.toggle('selected',mode === 'codex');
+    if ($('#claude-bundle-button')) $('#claude-bundle-button').hidden = mode !== 'claude';
+    if ($('#codex-connect-button')) $('#codex-connect-button').hidden = mode !== 'codex';
+    $('.connection-help').textContent = mode === 'codex'
+      ? 'Codex CLI가 설치되어 있으면 바로 연결할 수 있어요. 실행 중인 Codex는 연결 후 다시 시작하세요.'
+      : 'Claude Desktop에서는 확장 파일을 설치해 연결하세요.';
   };
   $('#claude-config-tab').onclick = () => showConfig('claude');
   $('#codex-config-tab').onclick = () => showConfig('codex');
-  showConfig('claude');
   if (preferences.claudeBundleAvailable) {
     $('.connection-actions').insertAdjacentHTML('beforeend','<button class="subtle-button bundle-button" id="claude-bundle-button">Claude 확장 파일 찾기 ↗</button>');
     $('#claude-bundle-button').onclick = async () => {if (await window.todoDesktop.claudeBundle()) toast('파일을 찾았습니다. Claude Desktop에서 확장을 설치하세요.'); else toast('확장 파일을 찾을 수 없습니다.');};
+    $('.connection-actions').insertAdjacentHTML('beforeend', '<button class="subtle-button" id="codex-connect-button">Codex에 연결</button>');
+    $('#codex-connect-button').onclick = async event => {
+      const button = event.currentTarget;
+      button.disabled = true;
+      try {
+        const result = await window.todoDesktop.connectCodex();
+        if (result !== 'cancelled') {
+          const message = result === 'already' ? '이미 Codex에 연결되어 있습니다.' : 'Codex에 연결했습니다. 실행 중인 Codex를 다시 시작하세요.';
+          $('.connection-help').textContent = message;
+          toast(message);
+        }
+      } catch(error) {$('.connection-help').textContent = error.message; toast(error.message);}
+      finally {button.disabled = false;}
+    };
   }
+  showConfig('claude');
   $('#always-on-top').checked = preferences.alwaysOnTop;
   $('#opacity-slider').value = preferences.opacity;
   $('#opacity-value').textContent = `${preferences.opacity}%`;

@@ -6,6 +6,7 @@ const path = require('node:path');
 const {brief, providers} = require('./ai');
 const {MAX_BACKUP_BYTES, BACKUP_INTERVAL_MS, backupStatus, saveAutoBackup} = require('./backup');
 const {dueReminder, pruneReminderHistory} = require('./reminders');
+const {connectCodex} = require('./codex');
 
 const root = path.resolve(__dirname, '..');
 app.setName('TodoTodo');
@@ -400,6 +401,19 @@ else {
       if (!fs.existsSync(bundle)) return false;
       shell.showItemInFolder(bundle);
       return true;
+    });
+    ipcMain.handle('todo:connect-codex', async event => {
+      verifySender(event);
+      if (!app.isPackaged) throw new Error('배포판에서 Codex를 연결할 수 있습니다.');
+      return connectCodex(agentExecutable(), dbPath, async () => {
+        const result = await dialog.showMessageBox(window, {
+          type: 'question', buttons: ['그대로 두기', 'TodoTodo 연결로 바꾸기'], defaultId: 0, cancelId: 0,
+          title: 'Codex 연결 확인',
+          message: 'Codex에 등록된 todotodo 연결이 있습니다.',
+          detail: '기존 설정을 새 TodoTodo 실행 파일과 데이터 경로로 바꿀까요?'
+        });
+        return result.response === 1;
+      });
     });
     ipcMain.handle('todo:compact', (event, value) => {verifySender(event); return setCompact(value);});
     ipcMain.handle('todo:window-control', (event, action) => {
