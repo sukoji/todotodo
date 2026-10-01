@@ -312,6 +312,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .connection-tabs button.selected { border-color: var(--ink); background: #f8e9bd; color: var(--ink); }
 .bundle-button { margin-left: 6px; }
 .ai-brief-button { display: inline-flex; align-items: center; gap: 4px; border: 1px solid #c6dcd2; background: #e7f2ec; border-radius: 999px; color: var(--ink); font-size: 10px; font-weight: 700; padding: 7px 11px; margin-top: 11px; transition: transform .25s cubic-bezier(.2,1.5,.4,1),background .2s; }
+.ai-brief-button[hidden] { display: none; }
 .ai-brief-button:hover { transform: translateY(-2px); background: #d9ebe2; }
 .ai-brief-button:disabled { opacity: .6; cursor: wait; }
 .ai-key-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; }

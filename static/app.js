@@ -946,10 +946,15 @@ async function initializeDesktop() {
   $('#reminder-minutes').onchange = event => save('reminderMinutes',Number(event.target.value));
   $('#edge-side').onchange = event => save('edgeSide',event.target.value);
   $('#desktop-settings').insertAdjacentHTML('afterend', `<div class="panel connect-panel" id="ai-settings"><div class="connect-symbol">✎</div><h2>선택해서 쓰는 AI</h2><p>연결하지 않아도 TodoTodo의 모든 기본 기능을 쓸 수 있어요. 키를 등록하면 오늘 일정의 제목과 시간만 직접 요청할 때 전송합니다.</p><label class="field">제공자<select id="ai-provider"><option value="openai">OpenAI API · GPT</option><option value="anthropic">Claude API</option></select></label><label class="field">개인 API 키<input id="ai-key-input" type="password" autocomplete="off" placeholder="API 키를 입력하세요"></label><div class="ai-key-actions"><button class="subtle-button" id="save-ai-key">안전하게 저장</button><button class="subtle-button" id="remove-ai-key">연결 해제</button><span id="ai-key-status"></span></div><p class="connect-note">키는 운영체제 보안 저장소로 암호화됩니다. ChatGPT·Claude 구독과 API 사용료는 별개예요. 기존 계정으로 쓰려면 위 MCP 설정을 Codex 또는 Claude Desktop에 등록하세요.</p></div>`);
-  $('#home-view .page-heading p').insertAdjacentHTML('afterend','<button class="ai-brief-button" id="ai-brief-button">✳ AI에게 오늘의 순서 묻기</button>');
+  $('#home-view .page-heading p').insertAdjacentHTML('afterend','<button class="ai-brief-button" id="ai-brief-button" hidden>✳ AI에게 오늘의 순서 묻기</button>');
   $('#ai-provider').value = localStorage.getItem('todo-provider') || 'openai';
   let keyStatus = await window.todoDesktop.aiStatus();
-  const updateKeyStatus = () => {const connected = keyStatus[$('#ai-provider').value]; $('#ai-key-status').textContent = connected ? '● 연결됨' : '○ 연결 안 됨'; $('#ai-key-status').classList.toggle('connected',connected);};
+  const updateKeyStatus = () => {
+    const connected = Boolean(keyStatus[$('#ai-provider').value]);
+    $('#ai-key-status').textContent = connected ? '● 연결됨' : '○ 연결 안 됨';
+    $('#ai-key-status').classList.toggle('connected',connected);
+    $('#ai-brief-button').hidden = !connected;
+  };
   $('#ai-provider').onchange = () => {localStorage.setItem('todo-provider',$('#ai-provider').value); updateKeyStatus();};
   $('#save-ai-key').onclick = async () => {try {const key = $('#ai-key-input').value.trim(); if (!key) return toast('API 키를 입력하세요.'); keyStatus = await window.todoDesktop.aiKey($('#ai-provider').value,key); $('#ai-key-input').value = ''; updateKeyStatus(); toast('이 기기에 키를 저장했습니다.');} catch(error) {toast(error.message);}};
   $('#remove-ai-key').onclick = async () => {try {keyStatus = await window.todoDesktop.aiKey($('#ai-provider').value,''); updateKeyStatus(); toast('연결을 해제했습니다.');} catch(error) {toast(error.message);}};
