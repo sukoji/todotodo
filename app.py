@@ -11,6 +11,7 @@ from store import ConflictError, create_item, day_brief, delete_item, import_ite
 STATIC = Path(__file__).with_name("static")
 FILES = {"/": ("index.html", "text/html; charset=utf-8"),
          "/app.js": ("app.js", "text/javascript; charset=utf-8"),
+         "/schedule-conflicts.js": ("schedule-conflicts.js", "text/javascript; charset=utf-8"),
          "/styles.css": ("styles.css", "text/css; charset=utf-8"),
          "/theme.css": ("theme.css", "text/css; charset=utf-8"),
          "/logo.svg": ("logo.svg", "image/svg+xml"),

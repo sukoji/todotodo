@@ -59,6 +59,12 @@ class APITests(unittest.TestCase):
                     self.assertEqual(json.load(response), {"imported": 0, "skipped": 0})
                 with urlopen(url + "/logo.svg") as response:
                     self.assertEqual(response.status, 200)
+                with urlopen(url + "/") as response:
+                    html = response.read().decode("utf-8")
+                self.assertLess(html.index('src="./schedule-conflicts.js"'), html.index('src="./app.js"'))
+                with urlopen(url + "/schedule-conflicts.js") as response:
+                    self.assertEqual(response.status, 200)
+                    self.assertIn(b"function timeOverlaps", response.read())
             finally:
                 server.shutdown()
                 server.server_close()
