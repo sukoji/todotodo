@@ -1,6 +1,7 @@
 const $ = selector => document.querySelector(selector);
 const state = {items: [], view: 'home', scope: 'all', taskFilter: 'open', calendarMode: 'month', editing: null, month: new Date(), selectedDay: localDate(new Date()), preferredDay: new Date().getDate()};
 let desktopCompact = false;
+let compactKind = 'task';
 let renderedDate = '';
 let conflictAction = null;
 let editorBaseline = '';
@@ -317,7 +318,7 @@ function confirmCloseApp() {
 function requestCloseApp() {
   if (saving || compactSaving) {toast('저장 중입니다.'); return;}
   if ($('#discard-dialog').open) {pendingAppClose = true; return;}
-  if (editorHasChanges() || $('#compact-input').value.trim()) {
+  if (editorHasChanges()) {
     pendingAppClose = true;
     $('#discard-dialog').showModal();
   } else confirmCloseApp();
@@ -339,7 +340,7 @@ document.addEventListener('click', async event => {
   }
   const view = event.target.closest('[data-view]'); if (view) return setView(view.dataset.view);
   const create = event.target.closest('[data-new]'); if (create) return openEditor(create.dataset.new);
-  const scope = event.target.closest('[data-scope]'); if (scope) {state.scope = scope.dataset.scope; if (state.scope !== 'all') $('#compact-scope').value = state.scope; document.querySelectorAll('[data-scope]').forEach(el => {const selected = el === scope; el.classList.toggle('selected', selected); el.setAttribute('aria-pressed', String(selected));}); return render();}
+  const scope = event.target.closest('[data-scope]'); if (scope) {state.scope = scope.dataset.scope; if (state.scope !== 'all') {$('#compact-scope').value = state.scope; syncCompactDraftIndicator();} document.querySelectorAll('[data-scope]').forEach(el => {const selected = el === scope; el.classList.toggle('selected', selected); el.setAttribute('aria-pressed', String(selected));}); return render();}
   const filter = event.target.closest('[data-filter]'); if (filter) return setTaskFilter(filter.dataset.filter);
   const day = event.target.closest('[data-day]'); if (day) return selectCalendarDay(day.dataset.day);
   const compactEdit = event.target.closest('[data-compact-edit]'); if (compactEdit) {
@@ -541,10 +542,29 @@ function syncCompactDraftIndicator() {
   button.title = hasDraft ? '작은 메모 초안 이어쓰기' : '작은 메모 모드';
   button.setAttribute('aria-label', button.title);
   button.querySelector('span').textContent = hasDraft ? '초안 이어쓰기' : '작게 보기';
+  localStorage.setItem('todo-compact-draft-v1', JSON.stringify({title:$('#compact-input').value, scope:$('#compact-scope').value, kind:compactKind}));
+}
+function setCompactKind(kind) {
+  compactKind = kind;
+  document.querySelectorAll('[data-compact-kind]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.compactKind === kind)));
+  const label = kind === 'idea' ? '아이디어 한 줄 적기' : '오늘 할 일 적기';
+  $('#compact-input').placeholder = `${label}…`;
+  $('#compact-input').setAttribute('aria-label', label);
+  syncCompactDraftIndicator();
+}
+function restoreCompactDraft() {
+  try {
+    const draft = JSON.parse(localStorage.getItem('todo-compact-draft-v1') || '{}');
+    if (typeof draft.title === 'string') $('#compact-input').value = draft.title.slice(0, 200);
+    if (['personal','work'].includes(draft.scope)) $('#compact-scope').value = draft.scope;
+    setCompactKind(draft.kind === 'idea' ? 'idea' : 'task');
+  } catch {localStorage.removeItem('todo-compact-draft-v1'); setCompactKind('task');}
 }
 $('#compact-button').onclick = () => toggleCompact(true);
 $('#expand-button').onclick = () => toggleCompact(false);
 $('#compact-input').addEventListener('input', syncCompactDraftIndicator);
+$('#compact-scope').addEventListener('change', syncCompactDraftIndicator);
+document.querySelectorAll('[data-compact-kind]').forEach(button => {button.onclick = () => setCompactKind(button.dataset.compactKind);});
 $('#fold-button').onclick = $('#compact-fold').onclick = async () => {try {await window.todoDesktop.fold();} catch(error) {toast(error.message);}};
 document.querySelectorAll('[data-window-action]').forEach(button => {
   button.onclick = async () => {
@@ -555,11 +575,11 @@ document.querySelectorAll('[data-window-action]').forEach(button => {
 $('#compact-form').onsubmit = async event => {
   event.preventDefault();
   if (compactSaving) return;
-  const input = $('#compact-input'), title = input.value.trim();
+  const input = $('#compact-input'), title = input.value.trim(), scope = $('#compact-scope').value, kind = compactKind;
   if (!title) return;
   const button = event.currentTarget.querySelector('button[type="submit"]');
   compactSaving = true; button.disabled = true;
-  try {await api('/api/items',{method:'POST',body:JSON.stringify({title,kind:'task',scope:$('#compact-scope').value,date:localDate(new Date())})}); if (input.value.trim() === title) input.value = ''; await refresh(); toast('오늘 페이지에 적었어요.');}
+  try {await api('/api/items',{method:'POST',body:JSON.stringify({title,kind,scope,date:kind === 'task' ? localDate(new Date()) : ''})}); if (input.value.trim() === title && scope === $('#compact-scope').value && kind === compactKind) {input.value = ''; syncCompactDraftIndicator();} await refresh(); toast(kind === 'idea' ? '아이디어 보관함에 담았어요.' : '오늘 페이지에 적었어요.');}
   catch(error) {toast(error.message);}
   finally {compactSaving = false; button.disabled = false; syncCompactDraftIndicator();}
 };
@@ -709,6 +729,7 @@ document.addEventListener('keydown', event => {
   if (window.todoDesktop && event.ctrlKey && event.shiftKey && event.key.toLowerCase() === 'm') {event.preventDefault(); toggleCompact();}
   if (!desktopCompact && event.ctrlKey && event.key.toLowerCase() === 'n') {event.preventDefault(); if (!document.querySelector('dialog[open]')) openEditor();}
 });
+restoreCompactDraft();
 initializeDesktop().then(refresh).catch(error => toast(error.message));
 window.addEventListener('focus', refresh);
 document.addEventListener('visibilitychange', () => {if (!document.hidden) refresh();});
