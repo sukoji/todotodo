@@ -378,6 +378,17 @@ dialog::backdrop { background: #283b4770; animation: backdrop-appear .25s ease-o
   .summary-card { min-height: 120px; }
   .capture-card { transform: none; }
 }
+@media (max-width: 470px) {
+  .desktop-app .brand>div { display: none; }
+  .desktop-app .sidebar { gap: 6px; }
+  .desktop-app .sidebar .nav-item { padding: 0 4px; }
+}
+@media (max-width: 350px) {
+  .desktop-app .sidebar .brand { display: none; }
+  .desktop-app .topbar { justify-content: flex-end; }
+  .desktop-app .breadcrumb { display: none; }
+  .desktop-app .page-heading { flex-wrap: wrap; }
+}
 @media (prefers-reduced-motion: reduce) {
   *,*::before,*::after { animation-duration: .01ms!important; animation-iteration-count: 1!important; transition-duration: .01ms!important; scroll-behavior: auto!important; }
 }
