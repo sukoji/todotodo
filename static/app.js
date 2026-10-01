@@ -639,6 +639,10 @@ $('#editor-form').addEventListener('submit', async event => {
       const visible = state.taskFilter === 'all' || (state.taskFilter === 'open' && saved.status !== 'done') || state.taskFilter === saved.status;
       if (!visible) setTaskFilter(saved.status === 'todo' ? 'open' : saved.status);
     }
+    if (!promoted) {
+      const view = $('.view.active');
+      (view.querySelector(`[data-edit="${saved.id}"]`) || view.querySelector('[data-new]'))?.focus({preventScroll:false});
+    }
     const repeated = data.repeat && saved.series_id ? state.items.filter(item => item.series_id === saved.series_id).length : 0;
     toast(data.future ? '이후 반복 기록에 적용했습니다.' : repeated ? `${repeated}개 날짜에 반복 기록을 만들었어요.` : promoted ? '할 일로 옮겼어요.' : created ? '기록했습니다.' : '수정했습니다.');
   } catch(error) {if (error.status === 409) showConflict('save'); else toast(error.message);}
