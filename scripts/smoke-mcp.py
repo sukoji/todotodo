@@ -22,12 +22,15 @@ async def main(executable: Path, db: Path):
         result = await client.call_tool("list_entries", {"kind": "idea"})
         if result.is_error:
             raise RuntimeError(result)
+        result = await client.call_tool("capture_entry", {"title": "Invalid reminder", "time": "09:30"})
+        if not result.is_error or "날짜를 먼저" not in result.content[0].text:
+            raise RuntimeError("MCP scheduling error was not explained")
 
     with closing(sqlite3.connect(db)) as connection:
         count = connection.execute("SELECT count(*) FROM items WHERE title = ?", ("Release smoke test",)).fetchone()[0]
     if count != 1:
         raise RuntimeError("MCP entry was not saved to the expected database")
-    print("Packaged MCP read/write smoke test passed")
+    print("Packaged MCP read/write and validation smoke test passed")
 
 
 if __name__ == "__main__":

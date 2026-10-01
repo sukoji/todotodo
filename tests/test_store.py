@@ -55,6 +55,23 @@ class StoreTests(unittest.TestCase):
         self.assertEqual(store.get_item(task["id"])["title"], "원래 제목")
         self.assertEqual(len(store.list_items()), 1)
 
+    def test_agent_schedule_needs_a_date_when_time_is_set(self):
+        with self.assertRaisesRegex(ValueError, "날짜를 먼저"):
+            store.create_item({"title": "날짜 없는 알림", "time": "09:30"}, source="mcp")
+        item = store.create_item({"title": "회의", "date": "2026-10-02", "time": "09:30"})
+        with self.assertRaisesRegex(ValueError, "날짜를 먼저"):
+            store.update_item(item["id"], {"date": ""})
+        self.assertEqual(store.get_item(item["id"]), item)
+        changed = store.update_item(item["id"], {"date": "", "time": ""})
+        self.assertEqual((changed["date"], changed["time"]), ("", ""))
+        with self.assertRaisesRegex(ValueError, "날짜를 먼저"):
+            store.update_item(item["id"], {"time": "09:30"})
+        self.assertEqual(len(store.list_items()), 1)
+
+        old_entry = {**item, "id": "a" * 32, "date": "", "time": "09:30"}
+        self.assertEqual(store.import_items({"format": "todotodo-v1", "items": [old_entry]})["imported"], 1)
+        self.assertEqual(store.update_item(old_entry["id"], {"status": "done"})["status"], "done")
+
     def test_backup_import_is_idempotent_and_atomic(self):
         first = store.create_item({"title": "되찾을 생각", "kind": "idea", "details": "원본 메모"})
         backup = {"format": "todotodo-v1", "items": store.list_items()}
@@ -76,6 +93,8 @@ class StoreTests(unittest.TestCase):
         self.assertEqual(changed["revision"], 1)
         with self.assertRaises(store.ConflictError):
             store.update_item(item["id"], {"title": "오래된 화면 수정"}, expected_revision=item["revision"])
+        with self.assertRaises(store.ConflictError):
+            store.update_item(item["id"], {"date": "", "time": "09:30"}, expected_revision=item["revision"])
         with self.assertRaises(store.ConflictError):
             store.delete_item(item["id"], expected_revision=item["revision"])
         self.assertEqual(store.get_item(item["id"])["title"], "에이전트 수정")

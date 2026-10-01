@@ -111,8 +111,14 @@ def validate(data, *, partial=False):
             raise ValueError("시간은 HH:MM 형식이어야 합니다.") from exc
 
 
+def validate_schedule(data):
+    if data.get("time") and not data.get("date"):
+        raise ValueError("시간을 입력하려면 날짜를 먼저 선택하세요.")
+
+
 def create_item(data, source="web"):
     validate(data)
+    validate_schedule(data)
     now = datetime.now().astimezone().isoformat(timespec="seconds")
     item = {
         "id": uuid.uuid4().hex, "title": data["title"].strip(),
@@ -175,6 +181,12 @@ def update_item(item_id, data, expected_revision=None):
     where = "id = ?" + (" AND revision = ?" if expected_revision is not None else "")
     params = [*data.values(), item_id] + ([expected_revision] if expected_revision is not None else [])
     with connection() as db:
+        db.execute("BEGIN IMMEDIATE")
+        current = db.execute("SELECT date, time, revision FROM items WHERE id = ?", (item_id,)).fetchone()
+        if current and expected_revision is not None and current["revision"] != expected_revision:
+            raise ConflictError("기록이 다른 곳에서 바뀌었습니다.")
+        if current and ("date" in data or "time" in data):
+            validate_schedule({"date": data.get("date", current["date"]), "time": data.get("time", current["time"])})
         result = db.execute(f"UPDATE items SET {assignments} WHERE {where}", params)
         if not result.rowcount:
             if expected_revision is not None and db.execute("SELECT 1 FROM items WHERE id = ?", (item_id,)).fetchone():

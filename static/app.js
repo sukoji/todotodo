@@ -374,8 +374,17 @@ async function toggleCompact(value = !desktopCompact) {
   if (!window.todoDesktop) return;
   try {await window.todoDesktop.compact(value);} catch(error) {toast(error.message);}
 }
+function syncCompactDraftIndicator() {
+  const button = $('#compact-button');
+  const hasDraft = Boolean($('#compact-input').value.trim());
+  button.classList.toggle('has-draft', hasDraft);
+  button.title = hasDraft ? '작은 메모 초안 이어쓰기' : '작은 메모 모드';
+  button.setAttribute('aria-label', button.title);
+  button.querySelector('span').textContent = hasDraft ? '초안 이어쓰기' : '작게 보기';
+}
 $('#compact-button').onclick = () => toggleCompact(true);
 $('#expand-button').onclick = () => toggleCompact(false);
+$('#compact-input').addEventListener('input', syncCompactDraftIndicator);
 $('#fold-button').onclick = $('#compact-fold').onclick = async () => {try {await window.todoDesktop.fold();} catch(error) {toast(error.message);}};
 document.querySelectorAll('[data-window-action]').forEach(button => {
   button.onclick = async () => {
@@ -392,7 +401,7 @@ $('#compact-form').onsubmit = async event => {
   compactSaving = true; button.disabled = true;
   try {await api('/api/items',{method:'POST',body:JSON.stringify({title,kind:'task',scope:state.scope === 'all' ? 'personal' : state.scope,date:localDate(new Date())})}); if (input.value.trim() === title) input.value = ''; await refresh(); toast('오늘 페이지에 적었어요.');}
   catch(error) {toast(error.message);}
-  finally {compactSaving = false; button.disabled = false;}
+  finally {compactSaving = false; button.disabled = false; syncCompactDraftIndicator();}
 };
 $('#search-button').onclick = openSearch;
 $('#close-search').onclick = () => $('#search-dialog').close();
@@ -484,7 +493,7 @@ async function initializeDesktop() {
   $('#compact-pin').classList.toggle('active',preferences.alwaysOnTop);
   desktopCompact = preferences.compact;
   document.body.classList.toggle('compact-app', desktopCompact);
-  window.todoDesktop.onCompactChanged(value => {desktopCompact = value; document.body.classList.toggle('compact-app', value); refresh();});
+  window.todoDesktop.onCompactChanged(value => {desktopCompact = value; document.body.classList.toggle('compact-app', value); if (value && $('#compact-input').value.trim()) $('#compact-input').focus(); refresh();});
   const save = async (key,value) => {
     try {
       const updated = await window.todoDesktop.setting(key,value);

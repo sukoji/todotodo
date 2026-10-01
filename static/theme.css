@@ -109,6 +109,8 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .local-pill i { background: #83bdab; }
 .pin-button { border-color: var(--line); }
 .pin-button.active { background: #e4f1eb; border-color: #9ccbbe; color: var(--ink); }
+#compact-button.has-draft { position: relative; background: #fff0bd; border-color: #d7bf78; color: var(--ink); }
+#compact-button.has-draft::after { content: ''; position: absolute; top: -3px; right: -3px; width: 7px; height: 7px; border: 1px solid var(--ink); border-radius: 50%; background: var(--coral); }
 .content { padding-top: 33px; }
 .eyebrow { color: #b8735b; letter-spacing: .6px; }
 .page-heading { margin-bottom: 27px; }

@@ -30,3 +30,16 @@ class MCPTests(unittest.TestCase):
             self.assertEqual(len(items), 1)
             self.assertEqual(items[0]["title"], "에이전트 메모")
             self.assertEqual(items[0]["source"], "mcp")
+
+    def test_agent_gets_an_error_for_time_without_date(self):
+        with tempfile.TemporaryDirectory() as folder, patch.object(store, "DB_PATH", Path(folder) / "agent.db"):
+            store.init_db()
+
+            async def run():
+                async with Client(mcp) as client:
+                    result = await client.call_tool("capture_entry", {"title": "알림", "time": "09:30"})
+                    self.assertTrue(result.is_error)
+                    self.assertIn("날짜를 먼저", result.content[0].text)
+
+            asyncio.run(run())
+            self.assertEqual(store.list_items(), [])
