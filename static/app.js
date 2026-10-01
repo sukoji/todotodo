@@ -306,7 +306,7 @@ function editorPayload() {
 }
 function syncFutureOption() {
   const form = $('#editor-form'), option = $('#future-option');
-  const futureCount = state.editing?.series_id ? state.items.filter(item => item.series_id === state.editing.series_id && item.date >= state.editing.date).length : 0;
+  const futureCount = state.editing?.series_id && state.editing.date ? state.items.filter(item => item.series_id === state.editing.series_id && item.date >= state.editing.date).length : 0;
   option.hidden = futureCount < 2;
   if (option.hidden) form.elements.future.checked = false;
   const future = form.elements.future.checked;
@@ -649,7 +649,7 @@ $('#delete-button').onclick = () => {
   if (!state.editing) return;
   if (saving) {toast('저장 중입니다.'); return;}
   const item = state.editing;
-  const future = item.series_id ? state.items.filter(entry => entry.series_id === item.series_id && entry.date >= item.date).length : 0;
+  const future = item.series_id && item.date ? state.items.filter(entry => entry.series_id === item.series_id && entry.date >= item.date).length : 0;
   $('#delete-item-title').textContent = item.title;
   $('#delete-future').hidden = future < 2;
   $('#delete-future').textContent = `이 날짜부터 ${future}개 삭제`;

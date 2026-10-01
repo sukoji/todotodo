@@ -269,6 +269,8 @@ def update_item(item_id, data, expected_revision=None, future=False):
             raise ConflictError("기록이 다른 곳에서 바뀌었습니다.")
         if future and not current["series_id"]:
             raise ValueError("반복 기록만 이후 일정을 수정할 수 있습니다.")
+        if future and not current["date"]:
+            raise ValueError("날짜가 없는 반복 기록은 먼저 날짜를 지정하세요.")
         if current["series_id"] and data.get("kind") == "idea":
             raise ValueError("반복 기록은 아이디어로 바꿀 수 없습니다.")
         if any(key in data for key in ("date", "time", "end_time")):
@@ -285,6 +287,18 @@ def update_item(item_id, data, expected_revision=None, future=False):
             db.execute(f"UPDATE items SET {assignments} WHERE series_id = ? AND date >= ?",
                        [*data.values(), current["series_id"], current["date"]])
             return dict(db.execute("SELECT * FROM items WHERE id = ?", (item_id,)).fetchone())
+        series_end = None
+        if current["series_id"] and "date" in data and data["date"] != current["date"]:
+            if not data["date"]:
+                raise ValueError("반복 기록에는 날짜가 필요합니다.")
+            duplicate = db.execute("SELECT 1 FROM items WHERE series_id = ? AND date = ? AND id <> ?",
+                                   (current["series_id"], data["date"], item_id)).fetchone()
+            if duplicate:
+                raise ValueError("같은 반복에 이미 그 날짜의 기록이 있습니다.")
+            other_end = db.execute("SELECT MAX(date) FROM items WHERE series_id = ? AND id <> ?",
+                                   (current["series_id"], item_id)).fetchone()[0]
+            series_end = max(data["date"], other_end or data["date"])
+            data["repeat_until"] = series_end
         if repeat or repeat_until:
             if current["series_id"]:
                 raise ValueError("반복으로 만든 날짜는 개별 기록만 수정할 수 있습니다.")
@@ -302,6 +316,10 @@ def update_item(item_id, data, expected_revision=None, future=False):
             if expected_revision is not None and db.execute("SELECT 1 FROM items WHERE id = ?", (item_id,)).fetchone():
                 raise ConflictError("기록이 다른 곳에서 바뀌었습니다.")
             return None
+        if series_end is not None:
+            db.execute("""UPDATE items SET repeat_until = ?, updated_at = ?, revision = revision + 1
+                WHERE series_id = ? AND id <> ? AND repeat_until <> ?""",
+                (series_end, data["updated_at"], current["series_id"], item_id, series_end))
         updated = dict(db.execute("SELECT * FROM items WHERE id = ?", (item_id,)).fetchone())
         for day in dates[1:]:
             insert_item(db, {**updated, "id": uuid.uuid4().hex, "date": day,
@@ -323,6 +341,8 @@ def delete_item(item_id, expected_revision=None, future=False):
             raise ConflictError("기록이 다른 곳에서 바뀌었습니다.")
         if future and not current["series_id"]:
             raise ValueError("반복 기록만 이후 일정을 삭제할 수 있습니다.")
+        if future and not current["date"]:
+            raise ValueError("날짜가 없는 반복 기록은 먼저 날짜를 지정하세요.")
         if future:
             count = db.execute("DELETE FROM items WHERE series_id = ? AND date >= ?",
                                (current["series_id"], current["date"])).rowcount

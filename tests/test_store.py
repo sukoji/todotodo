@@ -158,6 +158,45 @@ class StoreTests(unittest.TestCase):
         self.assertEqual(store.get_item(first["id"])["repeat_until"], "2026-10-15")
         self.assertEqual(store.get_item(first["id"])["revision"], 1)
 
+    def test_moving_one_repeat_keeps_unique_dates_and_series_end_consistent(self):
+        first = store.create_item({"title": "Weekly", "date": "2026-10-01",
+                                   "repeat": "weekly", "repeat_until": "2026-10-22"})
+        entries = store.list_items()
+        with self.assertRaises(ValueError):
+            store.update_item(entries[1]["id"], {"date": ""}, expected_revision=0)
+        with self.assertRaises(ValueError):
+            store.update_item(entries[1]["id"], {"date": "2026-10-15"}, expected_revision=0)
+        self.assertEqual(store.list_items(), entries)
+        moved = store.update_item(entries[3]["id"], {"date": "2026-10-16"}, expected_revision=0)
+        self.assertEqual(moved["revision"], 1)
+        self.assertEqual(moved["repeat_until"], "2026-10-16")
+        self.assertEqual({item["repeat_until"] for item in store.list_items()}, {"2026-10-16"})
+        moved_again = store.update_item(entries[1]["id"], {"date": "2026-10-29"}, expected_revision=1)
+        self.assertEqual(moved_again["repeat_until"], "2026-10-29")
+        self.assertEqual({item["repeat_until"] for item in store.list_items()}, {"2026-10-29"})
+        self.assertEqual(store.get_item(first["id"])["date"], "2026-10-01")
+
+    def test_legacy_undated_repeat_cannot_delete_entire_series(self):
+        store.create_item({"title": "Weekly", "date": "2026-10-01",
+                           "repeat": "weekly", "repeat_until": "2026-10-15"})
+        entries = store.list_items()
+        with store.connection() as db:
+            db.execute("UPDATE items SET date = '' WHERE id = ?", (entries[1]["id"],))
+        with self.assertRaises(ValueError):
+            store.delete_item(entries[1]["id"], expected_revision=0, future=True)
+        with self.assertRaises(ValueError):
+            store.update_item(entries[1]["id"], {"title": "Changed"}, expected_revision=0, future=True)
+        self.assertEqual(len(store.list_items()), 3)
+
+    def test_unchanged_repeat_date_does_not_rewrite_other_occurrences(self):
+        store.create_item({"title": "Weekly", "date": "2026-10-01",
+                           "repeat": "weekly", "repeat_until": "2026-10-20"})
+        entries = store.list_items()
+        changed = store.update_item(entries[1]["id"], {"title": "One week", "date": "2026-10-08"},
+                                    expected_revision=0)
+        self.assertEqual(changed["repeat_until"], "2026-10-20")
+        self.assertEqual([item["revision"] for item in store.list_items()], [0, 1, 0])
+
     def test_future_edit_updates_only_supplied_fields_and_preserves_completion(self):
         first = store.create_item({"title": "Weekly", "kind": "event", "date": "2026-10-01",
                                    "time": "10:00", "end_time": "11:00", "repeat": "weekly", "repeat_until": "2026-10-22"})

@@ -64,6 +64,14 @@ class APITests(unittest.TestCase):
                 with urlopen(repeat_request) as response:
                     repeated = json.load(response)
                 self.assertEqual(len([item for item in store.list_items() if item["series_id"] == repeated["id"]]), 4)
+                last = next(item for item in store.list_items() if item["date"] == "2026-10-22")
+                move_request = Request(url + f"/api/items/{last['id']}", data=json.dumps({
+                    "date": "2026-10-20", "expected_revision": last["revision"],
+                }).encode(), headers={"Content-Type": "application/json", "Authorization": "Bearer test-secret"}, method="PATCH")
+                with urlopen(move_request) as response:
+                    self.assertEqual(json.load(response)["repeat_until"], "2026-10-20")
+                self.assertEqual({item["repeat_until"] for item in store.list_items() if item["series_id"] == repeated["id"]},
+                                 {"2026-10-20"})
                 second = next(item for item in store.list_items() if item["date"] == "2026-10-08")
                 future_patch = Request(url + f"/api/items/{second['id']}", data=json.dumps({
                     "details": "공통 안건", "future": True, "expected_revision": second["revision"],
