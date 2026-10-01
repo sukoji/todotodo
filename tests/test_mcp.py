@@ -43,3 +43,19 @@ class MCPTests(unittest.TestCase):
 
             asyncio.run(run())
             self.assertEqual(store.list_items(), [])
+
+    def test_agent_can_capture_and_revise_schedule_end_time(self):
+        with tempfile.TemporaryDirectory() as folder, patch.object(store, "DB_PATH", Path(folder) / "agent.db"):
+            store.init_db()
+
+            async def run():
+                async with Client(mcp) as client:
+                    result = await client.call_tool("capture_entry", {"title": "회의", "kind": "event", "date": "2026-10-02", "time": "10:00", "end_time": "11:00"})
+                    self.assertFalse(result.is_error)
+                    item = store.list_items()[0]
+                    self.assertEqual(item["end_time"], "11:00")
+                    result = await client.call_tool("revise_entry", {"item_id": item["id"], "end_time": "12:00"})
+                    self.assertFalse(result.is_error)
+                    self.assertEqual(store.get_item(item["id"])["end_time"], "12:00")
+
+            asyncio.run(run())

@@ -26,9 +26,10 @@ KINDS = {"task", "idea", "event"}
 SCOPES = {"work", "personal"}
 STATUSES = {"todo", "doing", "done"}
 PRIORITIES = {"low", "normal", "high"}
-FIELDS = {"title", "details", "kind", "scope", "status", "priority", "date", "time", "tags"}
-LEGACY_BACKUP_FIELDS = FIELDS | {"id", "source", "created_at", "updated_at"}
-BACKUP_FIELDS = LEGACY_BACKUP_FIELDS | {"revision"}
+FIELDS = {"title", "details", "kind", "scope", "status", "priority", "date", "time", "end_time", "tags"}
+LEGACY_BACKUP_FIELDS = (FIELDS - {"end_time"}) | {"id", "source", "created_at", "updated_at"}
+CURRENT_BACKUP_FIELDS = FIELDS | {"id", "source", "created_at", "updated_at"}
+BACKUP_FIELDS = CURRENT_BACKUP_FIELDS | {"revision"}
 
 
 class ConflictError(Exception):
@@ -66,12 +67,16 @@ def init_db():
             id TEXT PRIMARY KEY, title TEXT NOT NULL, details TEXT NOT NULL DEFAULT '',
             kind TEXT NOT NULL, scope TEXT NOT NULL, status TEXT NOT NULL,
             priority TEXT NOT NULL, date TEXT NOT NULL DEFAULT '', time TEXT NOT NULL DEFAULT '',
+            end_time TEXT NOT NULL DEFAULT '',
             tags TEXT NOT NULL DEFAULT '', source TEXT NOT NULL,
             created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
             revision INTEGER NOT NULL DEFAULT 0
         )""")
-        if "revision" not in {row["name"] for row in db.execute("PRAGMA table_info(items)")}:
+        columns = {row["name"] for row in db.execute("PRAGMA table_info(items)")}
+        if "revision" not in columns:
             db.execute("ALTER TABLE items ADD COLUMN revision INTEGER NOT NULL DEFAULT 0")
+        if "end_time" not in columns:
+            db.execute("ALTER TABLE items ADD COLUMN end_time TEXT NOT NULL DEFAULT ''")
         db.execute("CREATE INDEX IF NOT EXISTS idx_items_date ON items(date)")
 
 
@@ -83,7 +88,7 @@ def validate(data, *, partial=False):
         raise ValueError(f"알 수 없는 필드: {', '.join(sorted(unknown))}")
     if not partial and not str(data.get("title", "")).strip():
         raise ValueError("제목을 입력하세요.")
-    for key in ("title", "details", "date", "time", "tags"):
+    for key in ("title", "details", "date", "time", "end_time", "tags"):
         if key in data and not isinstance(data[key], str):
             raise ValueError(f"{key}는 문자열이어야 합니다.")
     if "title" in data and not 1 <= len(data["title"].strip()) <= 200:
@@ -102,18 +107,23 @@ def validate(data, *, partial=False):
             date.fromisoformat(data["date"])
         except ValueError as exc:
             raise ValueError("날짜는 YYYY-MM-DD 형식이어야 합니다.") from exc
-    if data.get("time"):
-        try:
-            if not re.fullmatch(r"\d{2}:\d{2}", data["time"]):
-                raise ValueError()
-            datetime.strptime(data["time"], "%H:%M")
-        except ValueError as exc:
-            raise ValueError("시간은 HH:MM 형식이어야 합니다.") from exc
+    for key, label in (("time", "시간"), ("end_time", "종료 시간")):
+        if data.get(key):
+            try:
+                if not re.fullmatch(r"\d{2}:\d{2}", data[key]):
+                    raise ValueError()
+                datetime.strptime(data[key], "%H:%M")
+            except ValueError as exc:
+                raise ValueError(f"{label}은 HH:MM 형식이어야 합니다.") from exc
 
 
 def validate_schedule(data):
     if data.get("time") and not data.get("date"):
         raise ValueError("시간을 입력하려면 날짜를 먼저 선택하세요.")
+    if data.get("end_time") and not data.get("time"):
+        raise ValueError("종료 시간을 입력하려면 시작 시간을 먼저 선택하세요.")
+    if data.get("end_time") and data["end_time"] <= data["time"]:
+        raise ValueError("종료 시간은 시작 시간보다 늦어야 합니다.")
 
 
 def create_item(data, source="web"):
@@ -125,12 +135,13 @@ def create_item(data, source="web"):
         "details": data.get("details", "").strip(), "kind": data.get("kind", "task"),
         "scope": data.get("scope", "personal"), "status": data.get("status", "todo"),
         "priority": data.get("priority", "normal"), "date": data.get("date", ""),
-        "time": data.get("time", ""), "tags": data.get("tags", "").strip(),
+        "time": data.get("time", ""), "end_time": data.get("end_time", ""),
+        "tags": data.get("tags", "").strip(),
         "source": source, "created_at": now, "updated_at": now, "revision": 0,
     }
     with connection() as db:
-        db.execute("""INSERT INTO items (id,title,details,kind,scope,status,priority,date,time,tags,source,created_at,updated_at,revision)
-            VALUES (:id,:title,:details,:kind,:scope,:status,:priority,:date,:time,:tags,:source,:created_at,:updated_at,:revision)""", item)
+        db.execute("""INSERT INTO items (id,title,details,kind,scope,status,priority,date,time,end_time,tags,source,created_at,updated_at,revision)
+            VALUES (:id,:title,:details,:kind,:scope,:status,:priority,:date,:time,:end_time,:tags,:source,:created_at,:updated_at,:revision)""", item)
     return item
 
 
@@ -182,11 +193,11 @@ def update_item(item_id, data, expected_revision=None):
     params = [*data.values(), item_id] + ([expected_revision] if expected_revision is not None else [])
     with connection() as db:
         db.execute("BEGIN IMMEDIATE")
-        current = db.execute("SELECT date, time, revision FROM items WHERE id = ?", (item_id,)).fetchone()
+        current = db.execute("SELECT date, time, end_time, revision FROM items WHERE id = ?", (item_id,)).fetchone()
         if current and expected_revision is not None and current["revision"] != expected_revision:
             raise ConflictError("기록이 다른 곳에서 바뀌었습니다.")
-        if current and ("date" in data or "time" in data):
-            validate_schedule({"date": data.get("date", current["date"]), "time": data.get("time", current["time"])})
+        if current and any(key in data for key in ("date", "time", "end_time")):
+            validate_schedule({key: data.get(key, current[key]) for key in ("date", "time", "end_time")})
         result = db.execute(f"UPDATE items SET {assignments} WHERE {where}", params)
         if not result.rowcount:
             if expected_revision is not None and db.execute("SELECT 1 FROM items WHERE id = ?", (item_id,)).fetchone():
@@ -208,13 +219,13 @@ def delete_item(item_id, expected_revision=None):
 
 
 def import_items(backup):
-    if not isinstance(backup, dict) or backup.get("format") != "todotodo-v1" or not isinstance(backup.get("items"), list):
-        raise ValueError("TodoTodo v1 백업 파일이 아닙니다.")
+    if not isinstance(backup, dict) or backup.get("format") not in ("todotodo-v1", "todotodo-v2") or not isinstance(backup.get("items"), list):
+        raise ValueError("TodoTodo 백업 파일이 아닙니다.")
     items = backup["items"]
     if len(items) > 10000:
         raise ValueError("한 번에 10,000개 이하의 항목만 가져올 수 있습니다.")
     for item in items:
-        if not isinstance(item, dict) or set(item) not in (LEGACY_BACKUP_FIELDS, BACKUP_FIELDS):
+        if not isinstance(item, dict) or set(item) not in (LEGACY_BACKUP_FIELDS, LEGACY_BACKUP_FIELDS | {"revision"}, CURRENT_BACKUP_FIELDS, BACKUP_FIELDS):
             raise ValueError("백업 항목의 필드가 올바르지 않습니다.")
         if any(not isinstance(item[key], str) for key in LEGACY_BACKUP_FIELDS):
             raise ValueError("백업 항목의 값이 올바르지 않습니다.")
@@ -231,14 +242,16 @@ def import_items(backup):
                     raise ValueError()
             except ValueError as exc:
                 raise ValueError("백업 항목의 시간이 올바르지 않습니다.") from exc
-        validate({key: item[key] for key in FIELDS})
+        validate({key: item[key] for key in FIELDS if key in item})
+        if item.get("end_time"):
+            validate_schedule(item)
 
     imported = 0
     with connection() as db:
         for item in items:
-            entry = {**item, "revision": item.get("revision", 0)}
-            result = db.execute("""INSERT OR IGNORE INTO items (id,title,details,kind,scope,status,priority,date,time,tags,source,created_at,updated_at,revision)
-                VALUES (:id,:title,:details,:kind,:scope,:status,:priority,:date,:time,:tags,:source,:created_at,:updated_at,:revision)""", entry)
+            entry = {**item, "end_time": item.get("end_time", ""), "revision": item.get("revision", 0)}
+            result = db.execute("""INSERT OR IGNORE INTO items (id,title,details,kind,scope,status,priority,date,time,end_time,tags,source,created_at,updated_at,revision)
+                VALUES (:id,:title,:details,:kind,:scope,:status,:priority,:date,:time,:end_time,:tags,:source,:created_at,:updated_at,:revision)""", entry)
             imported += result.rowcount
     return {"imported": imported, "skipped": len(items) - imported}
 

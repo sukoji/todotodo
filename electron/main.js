@@ -426,7 +426,7 @@ else {
       let data;
       try {data = JSON.parse(await fs.promises.readFile(file, 'utf8'));}
       catch {throw new Error('JSON 백업 파일을 읽을 수 없습니다.');}
-      if (data?.format !== 'todotodo-v1' || !Array.isArray(data.items)) throw new Error('TodoTodo v1 백업 파일이 아닙니다.');
+      if (!['todotodo-v1', 'todotodo-v2'].includes(data?.format) || !Array.isArray(data.items)) throw new Error('TodoTodo 백업 파일이 아닙니다.');
       const choice = await dialog.showMessageBox(window, {
         type: 'question', title: '백업 가져오기', message: `${data.items.length}개 항목을 가져올까요?`,
         detail: '기존 기록은 그대로 두고, 같은 항목은 건너뜁니다.',

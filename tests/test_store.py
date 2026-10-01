@@ -68,13 +68,37 @@ class StoreTests(unittest.TestCase):
             store.update_item(item["id"], {"time": "09:30"})
         self.assertEqual(len(store.list_items()), 1)
 
-        old_entry = {**item, "id": "a" * 32, "date": "", "time": "09:30"}
+        old_entry = {key: value for key, value in {**item, "id": "a" * 32, "date": "", "time": "09:30"}.items() if key != "end_time"}
         self.assertEqual(store.import_items({"format": "todotodo-v1", "items": [old_entry]})["imported"], 1)
         self.assertEqual(store.update_item(old_entry["id"], {"status": "done"})["status"], "done")
+        roundtrip = {"format": "todotodo-v2", "items": [store.get_item(old_entry["id"])]}
+        store.delete_item(old_entry["id"])
+        self.assertEqual(store.import_items(roundtrip)["imported"], 1)
+
+    def test_schedule_end_time_validation_and_roundtrip(self):
+        for fields in ({"end_time": "11:00"}, {"time": "10:00", "end_time": "11:00"}):
+            with self.assertRaises(ValueError):
+                store.create_item({"title": "잘못된 일정", **fields})
+        for end_time in ("10:00", "09:30", "25:00"):
+            with self.assertRaises(ValueError):
+                store.create_item({"title": "잘못된 일정", "date": "2026-10-02", "time": "10:00", "end_time": end_time})
+        item = store.create_item({"title": "회의", "kind": "event", "date": "2026-10-02", "time": "10:00", "end_time": "11:00"})
+        self.assertEqual(store.get_item(item["id"])["end_time"], "11:00")
+        with self.assertRaises(ValueError):
+            store.update_item(item["id"], {"time": "12:00"})
+        with self.assertRaises(ValueError):
+            store.update_item(item["id"], {"date": "", "time": ""})
+        self.assertEqual(store.get_item(item["id"]), item)
+        changed = store.update_item(item["id"], {"time": "12:00", "end_time": "13:00"})
+        self.assertEqual((changed["time"], changed["end_time"]), ("12:00", "13:00"))
+        backup = {"format": "todotodo-v2", "items": [changed]}
+        store.delete_item(item["id"])
+        self.assertEqual(store.import_items(backup)["imported"], 1)
+        self.assertEqual(store.get_item(item["id"])["end_time"], "13:00")
 
     def test_backup_import_is_idempotent_and_atomic(self):
         first = store.create_item({"title": "되찾을 생각", "kind": "idea", "details": "원본 메모"})
-        backup = {"format": "todotodo-v1", "items": store.list_items()}
+        backup = {"format": "todotodo-v2", "items": store.list_items()}
         store.delete_item(first["id"])
         self.assertEqual(store.import_items(backup), {"imported": 1, "skipped": 0})
         self.assertEqual(store.get_item(first["id"]), first)
@@ -120,11 +144,17 @@ class StoreTests(unittest.TestCase):
             self.assertEqual(db.execute("PRAGMA journal_mode").fetchone()[0], "wal")
         self.assertEqual(store.get_item("a" * 32)["title"], "기존 기록")
         self.assertEqual(store.get_item("a" * 32)["revision"], 0)
+        self.assertEqual(store.get_item("a" * 32)["end_time"], "")
         item = store.create_item({"title": "옛날 백업"})
-        legacy = {key: value for key, value in item.items() if key != "revision"}
+        legacy = {key: value for key, value in item.items() if key not in ("revision", "end_time")}
         store.delete_item(item["id"])
         self.assertEqual(store.import_items({"format": "todotodo-v1", "items": [legacy]}), {"imported": 1, "skipped": 0})
         self.assertEqual(store.get_item(item["id"])["revision"], 0)
+        self.assertEqual(store.get_item(item["id"])["end_time"], "")
+        with_revision = {key: value for key, value in store.create_item({"title": "최근 옛 백업"}).items() if key != "end_time"}
+        store.delete_item(with_revision["id"])
+        self.assertEqual(store.import_items({"format": "todotodo-v1", "items": [with_revision]})["imported"], 1)
+        self.assertEqual(store.get_item(with_revision["id"])["end_time"], "")
 
 
 if __name__ == "__main__":

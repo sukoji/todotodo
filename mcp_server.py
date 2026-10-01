@@ -26,20 +26,20 @@ def get_entry(item_id: str) -> dict:
 
 @mcp.tool()
 def capture_entry(title: str, kind: str = "task", scope: str = "personal", details: str = "",
-                  date: str = "", time: str = "", priority: str = "normal", tags: str = "") -> dict:
-    """Capture a task, idea, or event. Date is YYYY-MM-DD; time is HH:MM local time and requires a date."""
+                  date: str = "", time: str = "", end_time: str = "", priority: str = "normal", tags: str = "") -> dict:
+    """Capture a task, idea, or event. Times are HH:MM local; end_time is optional and must be later than time on the same date."""
     try:
         return create_item({"title": title, "kind": kind, "scope": scope, "details": details,
-                            "date": date, "time": time, "priority": priority, "tags": tags}, source="mcp")
+                            "date": date, "time": time, "end_time": end_time, "priority": priority, "tags": tags}, source="mcp")
     except ValueError as exc:
         raise ToolError(str(exc)) from exc
 
 
 @mcp.tool()
 def revise_entry(item_id: str, title: str | None = None, details: str | None = None,
-                 date: str | None = None, time: str | None = None, status: str | None = None,
+                 date: str | None = None, time: str | None = None, end_time: str | None = None, status: str | None = None,
                  priority: str | None = None, tags: str | None = None) -> dict:
-    """Update supplied fields. Time requires a date; pass empty date/time/tags strings to clear them."""
+    """Update supplied fields. end_time must be later than time; pass empty strings to clear date, time, end_time, or tags."""
     changes = {key: value for key, value in locals().items() if key != "item_id" and value is not None}
     try:
         return update_item(item_id, changes) or {"error": "Entry not found"}

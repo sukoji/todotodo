@@ -41,7 +41,11 @@ class APITests(unittest.TestCase):
                     urlopen(delete_request)
                 self.assertEqual(delete_conflict.exception.code, 409)
                 self.assertEqual(store.get_item(item["id"])["status"], "doing")
-                backup = {"format": "todotodo-v1", "items": store.list_items()}
+                export_request = Request(url + "/api/export", headers={"Authorization": "Bearer test-secret"})
+                with urlopen(export_request) as response:
+                    backup = json.load(response)
+                self.assertEqual(backup["format"], "todotodo-v2")
+                self.assertEqual(backup["items"][0]["end_time"], "")
                 import_request = Request(url + "/api/import", data=json.dumps(backup).encode(), headers={"Content-Type": "application/json"}, method="POST")
                 with self.assertRaises(HTTPError) as error:
                     urlopen(import_request)

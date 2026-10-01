@@ -24,6 +24,7 @@ function formatDate(value) {
   const [y,m,d] = value.split('-').map(Number);
   return `${y === new Date().getFullYear() ? '' : `${y}년 `}${m}월 ${d}일`;
 }
+function formatTime(item) {return item.time ? (item.end_time ? `${item.time}–${item.end_time}` : item.time) : '';}
 function toast(message, action) {
   const el = $('#toast');
   clearTimeout(toast.timer);
@@ -65,7 +66,7 @@ function scoped(items) { return state.scope === 'all' ? items : items.filter(ite
 function openItems(items) { return items.filter(item => item.status !== 'done'); }
 function row(item, showDate = true, reschedule = false) {
   const complete = item.status === 'done';
-  const meta = [scopeName[item.scope], kindName[item.kind], item.time || '', item.tags || ''].filter(Boolean);
+  const meta = [scopeName[item.scope], kindName[item.kind], formatTime(item), item.tags || ''].filter(Boolean);
   return `<div class="item-row ${complete ? 'is-done' : ''}"><button class="check-button ${complete ? 'done' : ''}" data-complete="${item.id}" aria-label="${complete ? '완료 취소' : '완료'}">${complete ? '✓' : ''}</button><div class="item-body" data-edit="${item.id}" role="button" tabindex="0" aria-label="${escapeHTML(item.title)} 수정"><div class="item-title">${escapeHTML(item.title)} ${item.priority === 'high' ? '<i class="priority-high" title="높은 우선순위"></i>' : ''}${item.kind === 'task' && item.status === 'doing' ? '<span class="status-chip">진행 중</span>' : ''}</div><div class="item-meta">${meta.map(text => `<span>${escapeHTML(text)}</span>`).join('<span>·</span>')}</div></div>${showDate && item.date ? `<span class="item-date">${formatDate(item.date)}</span>` : ''}${reschedule ? `<button class="reschedule-button" data-reschedule="${item.id}" aria-label="${escapeHTML(item.title)} 오늘로 옮기기">오늘로 ↗</button>` : ''}</div>`;
 }
 function empty(message) { return `<div class="empty-state"><img class="empty-illustration" src="./empty.svg" alt="">${message}</div>`; }
@@ -147,7 +148,7 @@ function renderSearch() {
   };
   const matches = query
     ? state.items.filter(item => {
-      const text = `${item.title} ${item.details || ''} ${item.tags || ''} ${item.date || ''} ${formatDate(item.date)} ${item.time || ''} ${kindName[item.kind]} ${scopeName[item.scope]}`.toLocaleLowerCase();
+      const text = `${item.title} ${item.details || ''} ${item.tags || ''} ${item.date || ''} ${formatDate(item.date)} ${formatTime(item)} ${kindName[item.kind]} ${scopeName[item.scope]}`.toLocaleLowerCase();
       return terms.every(term => text.includes(term));
     }).sort((a,b) => rank(a) - rank(b) || b.updated_at.localeCompare(a.updated_at))
     : [...state.items].sort((a,b) => b.updated_at.localeCompare(a.updated_at)).slice(0,5);
@@ -156,8 +157,8 @@ function renderSearch() {
     const details = item.details?.replace(/\s+/g,' ') || '';
     const matchAt = terms.map(term => details.toLocaleLowerCase().indexOf(term)).filter(index => index >= 0).sort((a,b) => a - b)[0];
     const start = matchAt > 45 ? matchAt - 40 : 0;
-    const preview = details ? `${start ? '…' : ''}${details.slice(start,start+120)}${start+120 < details.length ? '…' : ''}` : (item.date ? `${formatDate(item.date)} ${item.time || ''}` : '메모 없음');
-    return `<button class="search-result" data-search-edit="${item.id}"><span>${kindName[item.kind]} · ${scopeName[item.scope]}${item.status === 'done' ? ' · 완료' : ''}${item.date ? ` · ${formatDate(item.date)}${item.time ? ` ${escapeHTML(item.time)}` : ''}` : ''}${item.tags ? ` · ${escapeHTML(item.tags.slice(0,60))}` : ''}</span><strong>${escapeHTML(item.title)}</strong><small>${escapeHTML(preview)}</small></button>`;
+    const preview = details ? `${start ? '…' : ''}${details.slice(start,start+120)}${start+120 < details.length ? '…' : ''}` : (item.date ? `${formatDate(item.date)} ${formatTime(item)}` : '메모 없음');
+    return `<button class="search-result" data-search-edit="${item.id}"><span>${kindName[item.kind]} · ${scopeName[item.scope]}${item.status === 'done' ? ' · 완료' : ''}${item.date ? ` · ${formatDate(item.date)}${item.time ? ` ${escapeHTML(formatTime(item))}` : ''}` : ''}${item.tags ? ` · ${escapeHTML(item.tags.slice(0,60))}` : ''}</span><strong>${escapeHTML(item.title)}</strong><small>${escapeHTML(preview)}</small></button>`;
   }).join('') : `<div class="search-empty">${query ? '맞는 기록이 없어요. 다른 단어로 찾아보세요.' : '아직 기록이 없어요. 먼저 한 장 적어보세요.'}</div>`;
   if (focusedId) $('#search-results').querySelector(`[data-search-edit="${focusedId}"]`)?.focus({preventScroll:true});
 }
@@ -198,7 +199,7 @@ function renderCalendar(items) {
     const current = new Date(start.getFullYear(), start.getMonth(), start.getDate()+index), day = localDate(current);
     const matches = byDate.get(day) || [];
     const label = dayFormat.format(current);
-    return `<button class="calendar-day ${!week && current.getMonth() !== month ? 'outside' : ''} ${day === state.selectedDay ? 'selected' : ''} ${day === localDate(new Date()) ? 'today' : ''}" data-day="${day}" tabindex="${day === state.selectedDay ? 0 : -1}" aria-label="${label}, ${matches.length}개 항목" aria-pressed="${day === state.selectedDay}"><span class="day-number">${current.getDate()}</span>${matches.slice(0,2).map(item => `<span class="calendar-dot ${item.kind === 'event' ? 'event' : ''}">${week && item.time ? `<strong class="calendar-time">${escapeHTML(item.time)}</strong>` : ''}${escapeHTML(item.title)}</span>`).join('')}${matches.length > 2 ? `<span class="calendar-more">+${matches.length-2}개 더</span>` : ''}</button>`;
+    return `<button class="calendar-day ${!week && current.getMonth() !== month ? 'outside' : ''} ${day === state.selectedDay ? 'selected' : ''} ${day === localDate(new Date()) ? 'today' : ''}" data-day="${day}" tabindex="${day === state.selectedDay ? 0 : -1}" aria-label="${label}, ${matches.length}개 항목" aria-pressed="${day === state.selectedDay}"><span class="day-number">${current.getDate()}</span>${matches.slice(0,2).map(item => `<span class="calendar-dot ${item.kind === 'event' ? 'event' : ''}">${week && item.time ? `<strong class="calendar-time">${escapeHTML(formatTime(item))}</strong>` : ''}${escapeHTML(item.title)}</span>`).join('')}${matches.length > 2 ? `<span class="calendar-more">+${matches.length-2}개 더</span>` : ''}</button>`;
   }).join('');
   const selected = new Date(`${state.selectedDay}T12:00:00`);
   $('#selected-day-title').textContent = new Intl.DateTimeFormat('ko-KR',{month:'long',day:'numeric',weekday:'long'}).format(selected);
@@ -230,7 +231,8 @@ function setTaskFilter(filter) {
   render();
 }
 function syncStatusField() {
-  const task = $('#editor-form').elements.kind.value === 'task';
+  const form = $('#editor-form'), task = form.elements.kind.value === 'task';
+  (form.elements.kind.value === 'idea' ? form.elements.details : form.elements.title).closest('.field').after($('#schedule-fields'));
   $('#task-status-field').hidden = !task;
   document.querySelectorAll('#task-status-field input').forEach(input => {input.disabled = !task;});
 }
@@ -247,9 +249,10 @@ function syncDateShortcuts() {
 function openEditor(kind = 'task', item = null) {
   state.editing = item;
   const form = $('#editor-form'); form.reset();
+  for (const key of ['date','time','end_time']) form.elements[key].setCustomValidity('');
   form.elements.kind.value = item?.kind || kind;
   form.elements.status.value = item?.status || 'todo';
-  for (const key of ['title','details','date','time','scope','priority','tags']) if (item) form.elements[key].value = item[key] || '';
+  for (const key of ['title','details','date','time','end_time','scope','priority','tags']) if (item) form.elements[key].value = item[key] || '';
   syncStatusField();
   if (!item && kind === 'event') form.elements.date.value = state.selectedDay;
   if (!item && state.scope !== 'all') form.elements.scope.value = state.scope;
@@ -393,6 +396,16 @@ $('#editor-form').addEventListener('submit', async event => {
     form.elements.date.reportValidity();
     return;
   }
+  if (data.end_time && !data.time) {
+    form.elements.time.setCustomValidity('종료 시간을 입력하려면 시작 시간을 먼저 선택하세요.');
+    form.elements.time.reportValidity();
+    return;
+  }
+  if (data.end_time && data.end_time <= data.time) {
+    form.elements.end_time.setCustomValidity('종료 시간은 시작 시간보다 늦어야 합니다.');
+    form.elements.end_time.reportValidity();
+    return;
+  }
   saving = true;
   const saveButton = form.querySelector('button[type="submit"]');
   saveButton.disabled = true;
@@ -411,9 +424,11 @@ $('#editor-form').addEventListener('submit', async event => {
 });
 document.querySelectorAll('#editor-form input[name="kind"]').forEach(input => {input.onchange = syncStatusField;});
 document.querySelectorAll('[data-date-shortcut]').forEach(button => {
-  button.onclick = () => {const date = $('#editor-form').elements.date; date.value = shortcutDate(button.dataset.dateShortcut); date.setCustomValidity(''); syncDateShortcuts();};
+  button.onclick = () => {const form = $('#editor-form'), date = form.elements.date; date.value = shortcutDate(button.dataset.dateShortcut); date.setCustomValidity(''); if (!date.value) {form.elements.time.value = ''; form.elements.end_time.value = '';} syncDateShortcuts();};
 });
-$('#editor-form').elements.date.oninput = event => {event.target.setCustomValidity(''); syncDateShortcuts();};
+$('#editor-form').elements.date.oninput = event => {event.target.setCustomValidity(''); if (!event.target.value) {$('#editor-form').elements.time.value = ''; $('#editor-form').elements.end_time.value = '';} syncDateShortcuts();};
+$('#editor-form').elements.time.oninput = event => {event.target.setCustomValidity(''); if (!event.target.value) $('#editor-form').elements.end_time.value = ''; $('#editor-form').elements.end_time.setCustomValidity('');};
+$('#editor-form').elements.end_time.oninput = event => event.target.setCustomValidity('');
 $('#close-dialog').onclick = $('#cancel-button').onclick = requestCloseEditor;
 $('#editor').setAttribute('closedby', 'none');
 new MutationObserver(() => {

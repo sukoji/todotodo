@@ -7,7 +7,7 @@ async function brief(provider, apiKey, entries, fetchImpl = fetch) {
   if (!providers[provider]) throw new Error('지원하지 않는 AI 제공자입니다.');
   if (!apiKey) throw new Error('먼저 API 키를 연결하세요.');
   if (!Array.isArray(entries) || entries.length === 0) return '오늘 예정된 항목이 없어요. 할 일을 하나 적으면 함께 정리할 수 있어요.';
-  const schedule = entries.slice(0, 20).map(item => `- ${item.time || '시간 미정'} ${item.title.slice(0, 200)}${item.priority === 'high' ? ' (중요)' : ''}`).join('\n');
+  const schedule = entries.slice(0, 20).map(item => `- ${item.time ? `${item.time}${item.end_time ? `–${item.end_time}` : ''}` : '시간 미정'} ${item.title.slice(0, 200)}${item.priority === 'high' ? ' (중요)' : ''}`).join('\n');
   const prompt = `다음은 사용자가 명시적으로 선택한 오늘의 할 일과 일정입니다. 한국어로 3문장 이내의 간결한 실행 순서와 한 가지 현실적인 시작 행동을 제안하세요. 없는 일정이나 시간을 지어내지 마세요.\n\n${schedule}`;
   const config = providers[provider];
   const options = provider === 'openai'
