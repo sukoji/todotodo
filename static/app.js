@@ -223,7 +223,27 @@ function renderCalendar(items) {
   const conflicts = timeConflictPairs(dayItems);
   $('#calendar-conflicts').hidden = !conflicts.length;
   $('#calendar-conflicts').innerHTML = conflicts.length ? `<strong>시간이 겹쳐요</strong><span>${conflicts.slice(0,2).map(([a,b]) => `${escapeHTML(a.title)} · ${escapeHTML(formatTime(a))} ↔ ${escapeHTML(b.title)} · ${escapeHTML(formatTime(b))}`).join('<br>')}${conflicts.length > 2 ? `<br>외 ${conflicts.length-2}쌍` : ''}</span>` : '';
-  $('#selected-day-list').innerHTML = dayItems.length ? dayItems.map(item => row(item,false)).join('') : empty('이날의 일정이 없어요.');
+  const timed = dayItems.filter(item => item.kind !== 'idea' && item.time);
+  const untimed = dayItems.filter(item => item.kind === 'idea' || !item.time);
+  const timeline = $('#day-timeline');
+  timeline.hidden = !timed.length;
+  if (timed.length) {
+    const minutes = value => Number(value.slice(0,2)) * 60 + Number(value.slice(3,5));
+    const first = Math.min(...timed.map(item => minutes(item.time)));
+    const last = Math.max(...timed.map(item => item.end_time && item.end_time > item.time ? minutes(item.end_time) : minutes(item.time) + 30));
+    let from = Math.max(0, Math.floor(first / 60) * 60 - 60);
+    let until = Math.min(1440, Math.ceil(last / 60) * 60 + 60);
+    if (until - from < 180) {until = Math.min(1440, from + 180); from = Math.max(0, until - 180);}
+    const clock = value => `${String(Math.floor(value / 60)).padStart(2,'0')}:00`;
+    timeline.innerHTML = `<div class="timeline-heading"><strong>이날의 시간표</strong><span>${timed.length}개</span></div><div class="timeline-scale"><span>${clock(from)}</span><span>${clock(until)}</span></div>${timed.map(item => `<div class="timeline-entry ${item.status === 'done' ? 'is-done' : ''}">${row(item,false)}<div class="timeline-track" aria-hidden="true"><span class="timeline-fill ${item.kind === 'event' ? 'event' : 'task'} ${item.end_time && item.end_time > item.time ? '' : 'point'}" data-timeline-id="${item.id}"></span></div></div>`).join('')}`;
+    for (const item of timed) {
+      const fill = timeline.querySelector(`[data-timeline-id="${item.id}"]`);
+      fill.style.left = `${(minutes(item.time) - from) / (until - from) * 100}%`;
+      if (item.end_time && item.end_time > item.time) fill.style.width = `${(minutes(item.end_time) - minutes(item.time)) / (until - from) * 100}%`;
+    }
+  }
+  $('#selected-day-list').hidden = timed.length && !untimed.length;
+  $('#selected-day-list').innerHTML = untimed.length ? `${timed.length ? '<h3 class="timeline-untimed">시간 미정</h3>' : ''}${untimed.map(item => row(item,false)).join('')}` : timed.length ? '' : empty('이날의 일정이 없어요.');
 }
 function selectCalendarDay(day) {
   const selected = new Date(`${day}T12:00:00`);

@@ -247,6 +247,23 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .time-conflict-notice { margin: 0 0 14px; padding: 10px 12px; border: 1px solid #eab99f; border-radius: 9px; background: #fff3e8; color: #6d493a; font-size: 11px; line-height: 1.5; overflow-wrap: anywhere; }
 .time-conflict-notice strong { display: block; margin-bottom: 3px; font-size: 12px; }
 .time-conflict-notice[hidden] { display: none; }
+.day-timeline { margin: 0 0 14px; padding: 11px 12px 4px; border: 1px solid #d5e0d7; border-radius: 10px; background: #f9faf4; }
+.day-timeline[hidden] { display: none; }
+.timeline-heading,.timeline-scale { display: flex; justify-content: space-between; align-items: center; }
+.timeline-heading { gap: 8px; color: var(--ink); font-size: 11px; }
+.timeline-heading span,.timeline-scale { color: #78877e; font-size: 10px; }
+.timeline-scale { margin: 10px 0 2px; }
+.timeline-entry { padding: 3px 0 9px; border-bottom: 1px solid #e5ebe3; }
+.timeline-entry:last-child { border-bottom: 0; }
+.timeline-entry .item-row { padding: 5px 0; border: 0; }
+.timeline-entry .item-title { font-size: 12px; }
+.timeline-track { position: relative; height: 10px; margin: 1px 0 0 36px; border-radius: 8px; background: linear-gradient(90deg, transparent 24.8%, #d4ddd7 25%, transparent 25.2%, transparent 49.8%, #d4ddd7 50%, transparent 50.2%, transparent 74.8%, #d4ddd7 75%, transparent 75.2%), #e8eee8; }
+.timeline-fill { position: absolute; top: 0; height: 10px; min-width: 6px; border-radius: 8px; border: 1px solid #53796f; background: #9cccb9; transform-origin: left center; animation: timeline-draw .35s cubic-bezier(.2,1.2,.4,1) both; }
+.timeline-fill.event { border-color: #bd795d; background: #f4b99d; }
+.timeline-fill.point { width: 7px; border-radius: 50%; }
+.timeline-entry.is-done .timeline-fill { opacity: .45; }
+.timeline-untimed { margin: 4px 0 8px; color: #78877e; font-size: 11px; }
+@keyframes timeline-draw { from { transform: scaleX(.2); } to { transform: scaleX(1); } }
 .editor-conflicts { margin: 12px 0 0; scroll-margin-bottom: 92px; }
 .calendar-more { display: block; margin-top: 4px; color: #9a6049; font-size: 10px; font-weight: 750; }
 .idea-intro { background: #e8f2ec; border: 1.5px dashed #b3c8bd; }
