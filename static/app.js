@@ -22,9 +22,22 @@ function formatDate(value) {
   const [y,m,d] = value.split('-').map(Number);
   return `${y === new Date().getFullYear() ? '' : `${y}년 `}${m}월 ${d}일`;
 }
-function toast(message) {
-  const el = $('#toast'); el.textContent = message; el.classList.add('show');
-  clearTimeout(toast.timer); toast.timer = setTimeout(() => el.classList.remove('show'), 3000);
+function toast(message, action) {
+  const el = $('#toast');
+  clearTimeout(toast.timer);
+  el.textContent = message;
+  if (action) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.textContent = action.label;
+    button.addEventListener('click', async () => {
+      button.disabled = true;
+      await action.run();
+    }, {once: true});
+    el.append(button);
+  }
+  el.classList.add('show');
+  toast.timer = setTimeout(() => el.classList.remove('show'), action ? 6000 : 3000);
 }
 async function api(path, options = {}) {
   if (window.todoDesktop) {
@@ -277,15 +290,30 @@ document.addEventListener('click', async event => {
   const complete = event.target.closest('[data-complete]'); if (complete) {
     const item = state.items.find(entry => entry.id === complete.dataset.complete);
     const rowElement = complete.closest('.item-row, .compact-row');
+    complete.disabled = true;
     if (item.status !== 'done' && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
       complete.classList.add('done'); complete.textContent = '✓';
       rowElement.classList.add('completing');
       await new Promise(resolve => setTimeout(resolve, 180));
     }
-    try {await api(`/api/items/${item.id}`,{method:'PATCH',body:JSON.stringify({status:item.status === 'done' ? 'todo' : 'done',expected_revision:item.revision})}); await refresh();}
+    try {
+      const saved = await api(`/api/items/${item.id}`,{method:'PATCH',body:JSON.stringify({status:item.status === 'done' ? 'todo' : 'done',expected_revision:item.revision})});
+      await refresh();
+      if (item.status !== 'done') toast('완료했어요', {label: '되돌리기', run: async () => {
+        try {
+          await api(`/api/items/${item.id}`, {method:'PATCH', body:JSON.stringify({status:item.status, expected_revision:saved.revision})});
+          await refresh();
+          toast('다시 할 일에 넣었어요');
+        } catch (error) {
+          if (error.status === 409) await refresh();
+          toast(error.status === 409 ? '다른 곳에서 바뀌어 되돌릴 수 없어요' : error.message);
+        }
+      }});
+    }
     catch(error) {
       rowElement.classList.remove('completing');
       complete.classList.toggle('done', item.status === 'done'); complete.textContent = item.status === 'done' ? '✓' : '';
+      complete.disabled = false;
       if (error.status === 409) await refresh();
       toast(error.message);
     }
