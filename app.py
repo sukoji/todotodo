@@ -2,6 +2,7 @@
 
 import json
 import os
+import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
@@ -108,8 +109,20 @@ class Handler(BaseHTTPRequestHandler):
 if __name__ == "__main__":
     init_db()
     server = ThreadingHTTPServer(("127.0.0.1", int(os.environ.get("TODOTODO_PORT", "8765"))), Handler)
+    if os.environ.get("TODOTODO_PARENT_PIPE") == "1":
+        def stop_with_parent():
+            try:
+                while os.read(0, 1):
+                    pass
+            except OSError:
+                pass
+            server.shutdown()
+
+        threading.Thread(target=stop_with_parent, daemon=True).start()
     print(f"TodoTodo: http://127.0.0.1:{server.server_port}", flush=True)
     try:
         server.serve_forever()
     except KeyboardInterrupt:
         pass
+    finally:
+        server.server_close()

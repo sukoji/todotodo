@@ -198,8 +198,8 @@ function startServer() {
     authToken = crypto.randomBytes(32).toString('hex');
     server = spawn(executable, args, {
       cwd: app.isPackaged ? process.resourcesPath : root, windowsHide: true,
-      env: {...process.env, PYTHONUNBUFFERED: '1', TODOTODO_DB: dbPath, TODOTODO_PORT: '0', TODOTODO_TOKEN: authToken},
-      stdio: ['ignore', 'pipe', 'pipe']
+      env: {...process.env, PYTHONUNBUFFERED: '1', TODOTODO_DB: dbPath, TODOTODO_PORT: '0', TODOTODO_TOKEN: authToken, TODOTODO_PARENT_PIPE: '1'},
+      stdio: ['pipe', 'pipe', 'pipe']
     });
     let output = '';
     const timeout = setTimeout(() => reject(new Error('로컬 데이터 서버가 시작되지 않았습니다.')), app.isPackaged ? 30000 : 12000);

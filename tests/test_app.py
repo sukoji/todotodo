@@ -1,5 +1,8 @@
 import json
 import os
+import queue
+import subprocess
+import sys
 import tempfile
 import threading
 import unittest
@@ -14,6 +17,45 @@ import store
 
 
 class APITests(unittest.TestCase):
+    def test_embedded_server_stops_when_parent_pipe_closes(self):
+        with tempfile.TemporaryDirectory() as folder:
+            env = {**os.environ, "TODOTODO_DB": str(Path(folder) / "items.db"),
+                   "TODOTODO_PORT": "0", "TODOTODO_PARENT_PIPE": "1"}
+            process = subprocess.Popen([sys.executable, "-u", str(Path(app.__file__))],
+                                       stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                                       stderr=subprocess.PIPE, env=env)
+            try:
+                output = queue.Queue()
+                threading.Thread(target=lambda: output.put(process.stdout.readline()), daemon=True).start()
+                self.assertIn(b"TodoTodo: http://127.0.0.1:", output.get(timeout=8))
+                process.stdin.close()
+                self.assertEqual(process.wait(timeout=5), 0)
+            finally:
+                if process.poll() is None:
+                    process.kill()
+                    process.wait(timeout=5)
+                process.stdout.close()
+                process.stderr.close()
+
+    def test_standalone_server_does_not_depend_on_parent_pipe(self):
+        with tempfile.TemporaryDirectory() as folder:
+            env = {**os.environ, "TODOTODO_DB": str(Path(folder) / "items.db"), "TODOTODO_PORT": "0"}
+            env.pop("TODOTODO_PARENT_PIPE", None)
+            process = subprocess.Popen([sys.executable, "-u", str(Path(app.__file__))],
+                                       stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                                       stderr=subprocess.PIPE, env=env)
+            try:
+                output = queue.Queue()
+                threading.Thread(target=lambda: output.put(process.stdout.readline()), daemon=True).start()
+                self.assertIn(b"TodoTodo: http://127.0.0.1:", output.get(timeout=8))
+                self.assertIsNone(process.poll())
+            finally:
+                if process.poll() is None:
+                    process.terminate()
+                    process.wait(timeout=5)
+                process.stdout.close()
+                process.stderr.close()
+
     def test_electron_token_protects_shared_api(self):
         with tempfile.TemporaryDirectory() as folder, patch.object(store, "DB_PATH", Path(folder) / "api.db"), patch.dict(os.environ, {"TODOTODO_TOKEN": "test-secret"}):
             store.init_db()
