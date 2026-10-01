@@ -9,7 +9,7 @@ const {dueReminder, pruneReminderHistory} = require('./reminders');
 
 const root = path.resolve(__dirname, '..');
 app.setName('TodoTodo');
-let window, edgeWindow, edgeDisplayId, server, baseURL, authToken, dbPath, settingsPath, secretsPath, backupFolder, timer, backupTimer, boundsTimer, movingByApp = false, backupRunning = false, rendererReady = false, closeApproved = false;
+let window, edgeWindow, edgeDisplayId, server, baseURL, authToken, dbPath, settingsPath, secretsPath, backupFolder, timer, backupTimer, boundsTimer, movingByApp = false, backupRunning = false, rendererReady = false, closeApproved = false, quitting = false;
 let pendingReminderId = null;
 let backupState = {lastAt: null, count: 0};
 const defaults = {alwaysOnTop: false, opacity: 100, notifications: true, reminderMinutes: 10, compact: false, edgeSide: 'right', edgeY: {}, normalBounds: {}, compactBounds: {}, lastDisplayId: null, reminderHistory: {}};
@@ -195,7 +195,7 @@ function startServer() {
       stdio: ['ignore', 'pipe', 'pipe']
     });
     let output = '';
-    const timeout = setTimeout(() => reject(new Error('로컬 데이터 서버가 시작되지 않았습니다.')), 12000);
+    const timeout = setTimeout(() => reject(new Error('로컬 데이터 서버가 시작되지 않았습니다.')), app.isPackaged ? 30000 : 12000);
     server.stdout.on('data', chunk => {
       output += chunk.toString();
       const match = output.match(/TodoTodo: (http:\/\/127\.0\.0\.1:\d+)/);
@@ -326,7 +326,7 @@ function createWindow() {
     };
     animate();
   });
-  window.loadFile(path.join(root, 'static', 'index.html'));
+  window.loadFile(path.join(root, 'static', 'loading.html'));
   window.webContents.on('will-navigate', event => event.preventDefault());
   window.webContents.setWindowOpenHandler(() => ({action: 'deny'}));
   window.webContents.on('did-start-loading', () => {rendererReady = false;});
@@ -352,9 +352,11 @@ else {
     secretsPath = path.join(app.getPath('userData'), 'ai-keys.json');
     backupFolder = path.join(app.getPath('userData'), 'backups');
     loadSettings();
-    try {backupState = await backupStatus(backupFolder);} catch (error) {backupState.error = error.message;}
     session.defaultSession.setPermissionRequestHandler((_contents, _permission, callback) => callback(false));
+    createWindow();
+    try {backupState = await backupStatus(backupFolder);} catch (error) {backupState.error = error.message;}
     await startServer();
+    if (quitting) return;
     const verifySender = event => {
       if (!window || event.sender !== window.webContents || !event.senderFrame.url.startsWith('file:')) throw new Error('허용되지 않은 요청입니다.');
     };
@@ -433,7 +435,7 @@ else {
       if (choice.response !== 0) return null;
       return requestAPI('/api/import', 'POST', data);
     });
-    createWindow();
+    await window.loadFile(path.join(root, 'static', 'index.html'));
     screen.on('display-metrics-changed', keepWindowVisible);
     screen.on('display-removed', keepWindowVisible);
     timer = setInterval(checkReminders, 15000);
@@ -441,13 +443,17 @@ else {
     backupTimer = setInterval(checkAutoBackup, BACKUP_INTERVAL_MS);
     checkAutoBackup();
   }).catch(error => {
+    if (quitting) return;
     console.error(error);
-    const {dialog} = require('electron');
-    dialog.showErrorBox('TodoTodo를 시작할 수 없습니다', `${error.message}\nPython 3.10 이상이 설치되어 있는지 확인하세요.`);
+    const guidance = app.isPackaged
+      ? '앱을 다시 실행해 보세요. 계속 실패하면 설치 파일을 다시 실행하거나 ZIP을 새 폴더에 다시 풀어 주세요. 저장된 기록은 유지됩니다.'
+      : 'Python 3.10 이상이 설치되어 있는지 확인하세요.';
+    dialog.showErrorBox('TodoTodo를 시작할 수 없습니다', `${error.message}\n${guidance}`);
     app.quit();
   });
   app.on('window-all-closed', () => app.quit());
   app.on('before-quit', () => {
+    quitting = true;
     if (timer) clearInterval(timer);
     if (backupTimer) clearInterval(backupTimer);
     if (boundsTimer) clearTimeout(boundsTimer);
