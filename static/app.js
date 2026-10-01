@@ -92,7 +92,7 @@ function render() {
   $('#overdue-list').innerHTML = overdue.map(item => row(item, true, true)).join('');
   const upcoming = openItems(items.filter(item => item.date > today)).sort((a,b) => (a.date+a.time).localeCompare(b.date+b.time)).slice(0, 3);
   $('#upcoming-list').innerHTML = upcoming.length ? upcoming.map(item => row(item)).join('') : empty('다가오는 일정이 없어요.');
-  renderTasks(items); renderIdeas(items); renderCalendar(items); renderCompact(items);
+  renderTasks(items); renderIdeas(items); renderCalendar(items); renderCompact(state.items);
   if (focusId && !focused.isConnected) focusArea?.querySelector(`[data-${focusType}="${focusId}"]`)?.focus({preventScroll:true});
 }
 function renderCompact(items) {
@@ -103,7 +103,9 @@ function renderCompact(items) {
     return rank(a) - rank(b) || Number(b.status === 'doing') - Number(a.status === 'doing') || (a.time || '99:99').localeCompare(b.time || '99:99');
   });
   $('#compact-count').textContent = `${candidates.length}개 남음`;
-  $('#compact-list').innerHTML = candidates.length ? candidates.slice(0,3).map(item => `<div class="compact-row"><button class="check-button" data-complete="${item.id}" aria-label="완료"></button><button class="compact-title" data-compact-edit="${item.id}">${escapeHTML(item.title)}</button>${item.time ? `<small>${escapeHTML(item.time)}</small>` : ''}</div>`).join('') : '<div class="compact-empty">오늘은 여유로운 페이지예요 ☀</div>';
+  const list = $('#compact-list'), scrollTop = list.scrollTop;
+  list.innerHTML = candidates.length ? candidates.map(item => `<div class="compact-row"><button class="check-button" data-complete="${item.id}" aria-label="완료"></button><button class="compact-title" data-compact-edit="${item.id}">${escapeHTML(item.title)}</button><small>${scopeName[item.scope]}${item.time ? ` · ${escapeHTML(item.time)}` : ''}</small></div>`).join('') : '<div class="compact-empty">오늘은 여유로운 페이지예요 ☀</div>';
+  list.scrollTop = scrollTop;
 }
 function renderTasks(items) {
   let results = items.filter(item => item.kind === 'task');
@@ -317,7 +319,7 @@ document.addEventListener('click', async event => {
   }
   const view = event.target.closest('[data-view]'); if (view) return setView(view.dataset.view);
   const create = event.target.closest('[data-new]'); if (create) return openEditor(create.dataset.new);
-  const scope = event.target.closest('[data-scope]'); if (scope) {state.scope = scope.dataset.scope; document.querySelectorAll('[data-scope]').forEach(el => el.classList.toggle('selected',el === scope)); return render();}
+  const scope = event.target.closest('[data-scope]'); if (scope) {state.scope = scope.dataset.scope; if (state.scope !== 'all') $('#compact-scope').value = state.scope; document.querySelectorAll('[data-scope]').forEach(el => el.classList.toggle('selected',el === scope)); return render();}
   const filter = event.target.closest('[data-filter]'); if (filter) return setTaskFilter(filter.dataset.filter);
   const day = event.target.closest('[data-day]'); if (day) return selectCalendarDay(day.dataset.day);
   const compactEdit = event.target.closest('[data-compact-edit]'); if (compactEdit) {
@@ -524,7 +526,7 @@ $('#compact-form').onsubmit = async event => {
   if (!title) return;
   const button = event.currentTarget.querySelector('button[type="submit"]');
   compactSaving = true; button.disabled = true;
-  try {await api('/api/items',{method:'POST',body:JSON.stringify({title,kind:'task',scope:state.scope === 'all' ? 'personal' : state.scope,date:localDate(new Date())})}); if (input.value.trim() === title) input.value = ''; await refresh(); toast('오늘 페이지에 적었어요.');}
+  try {await api('/api/items',{method:'POST',body:JSON.stringify({title,kind:'task',scope:$('#compact-scope').value,date:localDate(new Date())})}); if (input.value.trim() === title) input.value = ''; await refresh(); toast('오늘 페이지에 적었어요.');}
   catch(error) {toast(error.message);}
   finally {compactSaving = false; button.disabled = false; syncCompactDraftIndicator();}
 };

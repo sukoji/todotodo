@@ -158,15 +158,19 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .compact-caption { display: flex; align-items: center; justify-content: space-between; padding-bottom: 6px; }
 .compact-caption strong { font-size: 12px; }
 .compact-caption span { font-size: 11px; color: #9b8270; }
-#compact-list { min-height: 0; flex: 1; overflow: auto; }
+#compact-list { min-height: 0; flex: 1; overflow: auto; scrollbar-width: thin; scrollbar-color: #cfbfa2 transparent; }
+#compact-list::-webkit-scrollbar { width: 7px; }
+#compact-list::-webkit-scrollbar-thumb { border-radius: 7px; background: #cfbfa2; }
 .compact-row { display: flex; gap: 8px; align-items: center; min-height: 38px; border-top: 1px dashed #e5dcc9; transition: transform .22s, opacity .22s; }
 .compact-row.completing { transform: translateX(14px); opacity: .25; }
 .compact-row .check-button { width: 24px; height: 24px; min-width: 24px; margin: 0; }
 .compact-title { border: 0; padding: 0; background: transparent; min-width: 0; flex: 1; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); font-size: 12px; font-weight: 650; }
 .compact-title:hover { text-decoration: underline; }
-.compact-row small { color: #b18e74; font-size: 10px; }
+.compact-row small { flex: none; white-space: nowrap; color: #b18e74; font-size: 10px; }
 .compact-empty { display: grid; place-items: center; height: 100%; color: #9b8c7b; font-size: 10px; }
 #compact-form { display: flex; gap: 4px; border: 1.5px solid #d9c99f; border-radius: 9px; padding: 3px; background: #fffdf7; box-shadow: 2px 3px 0 #e8dcc2; }
+#compact-scope { flex: none; width: 49px; padding: 0 2px; border: 0; border-right: 1px solid #e5dcc9; border-radius: 0; background: transparent; color: var(--ink); font-size: 11px; font-weight: 700; cursor: pointer; }
+#compact-form:focus-within { border-color: #80b4a8; box-shadow: 0 0 0 3px #a7d8d550; }
 #compact-input { border: 0; outline: 0; background: transparent; min-width: 0; flex: 1; padding: 4px 7px; color: var(--ink); font-size: 12px; }
 #compact-input::placeholder { color: #a9a093; }
 #compact-form button { border: 1px solid var(--ink); background: var(--yellow); color: var(--ink); width: 32px; height: 32px; border-radius: 6px; font-size: 18px; font-weight: 700; transition: transform .22s cubic-bezier(.2,1.5,.4,1); }

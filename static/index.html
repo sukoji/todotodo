@@ -12,7 +12,7 @@
 <body>
   <section class="compact-shell" aria-label="작은 메모 모드">
     <div class="compact-header"><div class="compact-brand"><img src="./logo.svg" alt="" width="31" height="31"><strong>todotodo</strong></div><div class="compact-controls"><button id="compact-fold" title="화면 가장자리로 접기" aria-label="화면 가장자리로 접기">▸</button><button id="compact-pin" title="창 고정" aria-label="창 고정">◇</button><button id="expand-button" title="큰 화면으로" aria-label="큰 화면으로">⤢</button><details class="window-menu"><summary title="창 메뉴" aria-label="창 메뉴">···</summary><div class="window-menu-panel"><button data-window-action="minimize">최소화</button><button data-window-action="close">닫기</button></div></details></div></div>
-    <div class="compact-body"><div class="compact-caption"><strong>오늘의 작은 메모</strong><span id="compact-count">0개 남음</span></div><div id="compact-list"></div><form id="compact-form"><input id="compact-input" maxlength="200" placeholder="할 일 바로 적기…" aria-label="할 일 바로 적기" required><button type="submit" aria-label="추가">＋</button></form></div>
+    <div class="compact-body"><div class="compact-caption"><strong>오늘의 작은 메모</strong><span id="compact-count">0개 남음</span></div><div id="compact-list"></div><form id="compact-form"><select id="compact-scope" aria-label="저장할 공간"><option value="personal">개인</option><option value="work">업무</option></select><input id="compact-input" maxlength="200" placeholder="할 일 바로 적기…" aria-label="할 일 바로 적기" required><button type="submit" aria-label="추가">＋</button></form></div>
   </section>
   <div class="app-shell">
     <aside class="sidebar">

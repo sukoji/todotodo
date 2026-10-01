@@ -2,7 +2,7 @@
   "manifest_version": "0.3",
   "name": "todotodo",
   "display_name": "TodoTodo",
-  "version": "0.1.31",
+  "version": "0.1.32",
   "description": "Use your local TodoTodo tasks, schedule, and ideas in Claude Desktop.",
   "author": {"name": "Sukojin", "url": "https://github.com/sukoji/todotodo"},
   "homepage": "https://github.com/sukoji/todotodo",
