@@ -173,6 +173,7 @@ function foldToEdge() {
     edgeWindow.webContents.setWindowOpenHandler(() => ({action: 'deny'}));
   }
   positionEdge();
+  edgeWindow.webContents.send('edge:side-changed', settings.edgeSide);
   window.hide();
   edgeWindow.show();
 }
