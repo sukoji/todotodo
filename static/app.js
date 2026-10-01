@@ -5,6 +5,7 @@ let renderedDate = '';
 let conflictAction = null;
 let editorBaseline = '';
 let saving = false;
+let compactSaving = false;
 let pendingAppClose = false;
 const kindName = {task: '할 일', event: '일정', idea: '아이디어'};
 const scopeName = {work: '업무', personal: '개인'};
@@ -227,9 +228,9 @@ function confirmCloseApp() {
   window.todoDesktop.windowControl('confirm-close').catch(error => toast(error.message));
 }
 function requestCloseApp() {
-  if (saving) {toast('저장 중입니다.'); return;}
+  if (saving || compactSaving) {toast('저장 중입니다.'); return;}
   if ($('#discard-dialog').open) {pendingAppClose = true; return;}
-  if (editorHasChanges() || (desktopCompact && $('#compact-input').value.trim())) {
+  if (editorHasChanges() || $('#compact-input').value.trim()) {
     pendingAppClose = true;
     $('#discard-dialog').showModal();
   } else confirmCloseApp();
@@ -384,10 +385,14 @@ document.querySelectorAll('[data-window-action]').forEach(button => {
 });
 $('#compact-form').onsubmit = async event => {
   event.preventDefault();
+  if (compactSaving) return;
   const input = $('#compact-input'), title = input.value.trim();
   if (!title) return;
-  try {await api('/api/items',{method:'POST',body:JSON.stringify({title,kind:'task',scope:state.scope === 'all' ? 'personal' : state.scope,date:localDate(new Date())})}); input.value = ''; await refresh(); toast('오늘 페이지에 적었어요.');}
+  const button = event.currentTarget.querySelector('button[type="submit"]');
+  compactSaving = true; button.disabled = true;
+  try {await api('/api/items',{method:'POST',body:JSON.stringify({title,kind:'task',scope:state.scope === 'all' ? 'personal' : state.scope,date:localDate(new Date())})}); if (input.value.trim() === title) input.value = ''; await refresh(); toast('오늘 페이지에 적었어요.');}
   catch(error) {toast(error.message);}
+  finally {compactSaving = false; button.disabled = false;}
 };
 $('#search-button').onclick = openSearch;
 $('#close-search').onclick = () => $('#search-dialog').close();
