@@ -90,23 +90,27 @@ function render() {
   const focusArea = focused?.closest('.view, .compact-shell');
   const items = scoped(state.items), today = localDate(new Date());
   const dueToday = openItems(items.filter(item => item.date === today));
-  const activeTasks = openItems(items.filter(item => item.kind === 'task'));
-  const openIdeas = openItems(items.filter(item => item.kind === 'idea'));
-  $('#today-label').textContent = new Intl.DateTimeFormat('ko-KR', {year:'numeric',month:'long',day:'numeric',weekday:'long'}).format(new Date());
-  $('#greeting').textContent = '오늘도 하나씩,';
-  $('#stat-today').textContent = dueToday.length;
-  $('#stat-doing').textContent = items.filter(item => item.kind === 'task' && item.status === 'doing').length;
-  $('#stat-ideas').textContent = openIdeas.length;
   $('#today-count').textContent = dueToday.length;
-  const todayList = [...dueToday].sort((a,b) => (a.time || '99:99').localeCompare(b.time || '99:99'));
-  $('#today-list').innerHTML = todayList.length ? todayList.map(item => row(item, false)).join('') : empty('오늘 예정된 항목이 없어요.<br>새로운 하루를 계획해 보세요.');
-  const overdue = openItems(items.filter(item => item.kind === 'task' && item.date && item.date < today)).sort((a,b) => b.date.localeCompare(a.date));
-  $('#overdue-section').hidden = overdue.length === 0;
-  $('#overdue-count').textContent = `${overdue.length}개`;
-  $('#overdue-list').innerHTML = overdue.map(item => row(item, true, true)).join('');
-  const upcoming = openItems(items.filter(item => item.date > today)).sort((a,b) => (a.date+a.time).localeCompare(b.date+b.time)).slice(0, 3);
-  $('#upcoming-list').innerHTML = upcoming.length ? upcoming.map(item => row(item)).join('') : empty('다가오는 일정이 없어요.');
-  renderTasks(items); renderIdeas(items); renderCalendar(items); renderCompact(state.items);
+  if (desktopCompact) renderCompact(state.items);
+  else if (state.view === 'home') {
+    const openIdeas = openItems(items.filter(item => item.kind === 'idea'));
+    $('#today-label').textContent = new Intl.DateTimeFormat('ko-KR', {year:'numeric',month:'long',day:'numeric',weekday:'long'}).format(new Date());
+    $('#greeting').textContent = '오늘도 하나씩,';
+    $('#stat-today').textContent = dueToday.length;
+    $('#stat-doing').textContent = items.filter(item => item.kind === 'task' && item.status === 'doing').length;
+    $('#stat-ideas').textContent = openIdeas.length;
+    const todayList = [...dueToday].sort((a,b) => (a.time || '99:99').localeCompare(b.time || '99:99'));
+    $('#today-list').innerHTML = todayList.length ? todayList.map(item => row(item, false)).join('') : empty('오늘 예정된 항목이 없어요.<br>새로운 하루를 계획해 보세요.');
+    const overdue = openItems(items.filter(item => item.kind === 'task' && item.date && item.date < today)).sort((a,b) => b.date.localeCompare(a.date));
+    $('#overdue-section').hidden = overdue.length === 0;
+    $('#overdue-count').textContent = `${overdue.length}개`;
+    $('#overdue-list').innerHTML = overdue.map(item => row(item, true, true)).join('');
+    const upcoming = openItems(items.filter(item => item.date > today)).sort((a,b) => (a.date+a.time).localeCompare(b.date+b.time)).slice(0, 3);
+    $('#upcoming-list').innerHTML = upcoming.length ? upcoming.map(item => row(item)).join('') : empty('다가오는 일정이 없어요.');
+  }
+  else if (state.view === 'tasks') renderTasks(items);
+  else if (state.view === 'ideas') renderIdeas(items);
+  else if (state.view === 'calendar') renderCalendar(items);
   if (focusId && !focused.isConnected) focusArea?.querySelector(`[data-${focusType}="${focusId}"]`)?.focus({preventScroll:true});
 }
 function renderCompact(items) {
@@ -276,6 +280,7 @@ function setView(view) {
   });
   $('#breadcrumb-current').textContent = {home:'오늘',tasks:'할 일',calendar:'캘린더',ideas:'아이디어 보관함',connect:'에이전트 연결'}[view];
   window.scrollTo(0, 0);
+  render();
 }
 function setTaskFilter(filter) {
   state.taskFilter = filter;
@@ -758,7 +763,7 @@ function setCompactKind(kind) {
   $('#compact-input').setAttribute('aria-label', label);
   syncCompactDraftIndicator();
   $('#compact-list').scrollTop = 0;
-  renderCompact(state.items);
+  if (desktopCompact) renderCompact(state.items);
 }
 function restoreCompactDraft() {
   try {
@@ -892,7 +897,7 @@ async function initializeDesktop() {
   $('#compact-pin').classList.toggle('active',preferences.alwaysOnTop);
   desktopCompact = preferences.compact;
   document.body.classList.toggle('compact-app', desktopCompact);
-  window.todoDesktop.onCompactChanged(value => {desktopCompact = value; document.body.classList.toggle('compact-app', value); if (value && $('#compact-input').value.trim()) $('#compact-input').focus(); refresh();});
+  window.todoDesktop.onCompactChanged(value => {desktopCompact = value; document.body.classList.toggle('compact-app', value); render(); (value ? $('#compact-input') : $('#compact-button')).focus(); refresh();});
   const save = async (key,value) => {
     try {
       const updated = await window.todoDesktop.setting(key,value);
