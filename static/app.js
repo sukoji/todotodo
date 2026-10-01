@@ -135,14 +135,27 @@ function renderIdeas(items) {
 function renderSearch() {
   const focusedId = document.activeElement?.dataset.searchEdit;
   const query = $('#search-input').value.trim().toLocaleLowerCase();
-  const rank = item => item.title.toLocaleLowerCase().startsWith(query) ? 0 : item.title.toLocaleLowerCase().includes(query) ? 1 : item.tags.toLocaleLowerCase().includes(query) ? 2 : 3;
+  const terms = query.split(/\s+/).filter(Boolean);
+  const rank = item => {
+    const title = item.title.toLocaleLowerCase();
+    if (title.startsWith(query)) return 0;
+    if (terms.every(term => title.includes(term))) return 1;
+    if (terms.some(term => title.includes(term))) return 2;
+    return terms.some(term => (item.tags || '').toLocaleLowerCase().includes(term)) ? 3 : 4;
+  };
   const matches = query
-    ? state.items.filter(item => `${item.title} ${item.details} ${item.tags}`.toLocaleLowerCase().includes(query)).sort((a,b) => rank(a) - rank(b) || b.updated_at.localeCompare(a.updated_at))
+    ? state.items.filter(item => {
+      const text = `${item.title} ${item.details || ''} ${item.tags || ''} ${item.date || ''} ${formatDate(item.date)} ${item.time || ''} ${kindName[item.kind]} ${scopeName[item.scope]}`.toLocaleLowerCase();
+      return terms.every(term => text.includes(term));
+    }).sort((a,b) => rank(a) - rank(b) || b.updated_at.localeCompare(a.updated_at))
     : [...state.items].sort((a,b) => b.updated_at.localeCompare(a.updated_at)).slice(0,5);
   $('#search-count').textContent = query ? `${matches.length}개 결과${matches.length > 30 ? ' · 처음 30개 표시' : ''}` : '최근 기록';
   $('#search-results').innerHTML = matches.length ? matches.slice(0,30).map(item => {
-    const preview = item.details?.replace(/\s+/g,' ').slice(0,120) || (item.date ? `${formatDate(item.date)} ${item.time || ''}` : '메모 없음');
-    return `<button class="search-result" data-search-edit="${item.id}"><span>${kindName[item.kind]} · ${scopeName[item.scope]}${item.status === 'done' ? ' · 완료' : ''}${item.tags ? ` · ${escapeHTML(item.tags.slice(0,60))}` : ''}</span><strong>${escapeHTML(item.title)}</strong><small>${escapeHTML(preview)}</small></button>`;
+    const details = item.details?.replace(/\s+/g,' ') || '';
+    const matchAt = terms.map(term => details.toLocaleLowerCase().indexOf(term)).filter(index => index >= 0).sort((a,b) => a - b)[0];
+    const start = matchAt > 45 ? matchAt - 40 : 0;
+    const preview = details ? `${start ? '…' : ''}${details.slice(start,start+120)}${start+120 < details.length ? '…' : ''}` : (item.date ? `${formatDate(item.date)} ${item.time || ''}` : '메모 없음');
+    return `<button class="search-result" data-search-edit="${item.id}"><span>${kindName[item.kind]} · ${scopeName[item.scope]}${item.status === 'done' ? ' · 완료' : ''}${item.date ? ` · ${formatDate(item.date)}${item.time ? ` ${escapeHTML(item.time)}` : ''}` : ''}${item.tags ? ` · ${escapeHTML(item.tags.slice(0,60))}` : ''}</span><strong>${escapeHTML(item.title)}</strong><small>${escapeHTML(preview)}</small></button>`;
   }).join('') : `<div class="search-empty">${query ? '맞는 기록이 없어요. 다른 단어로 찾아보세요.' : '아직 기록이 없어요. 먼저 한 장 적어보세요.'}</div>`;
   if (focusedId) $('#search-results').querySelector(`[data-search-edit="${focusedId}"]`)?.focus({preventScroll:true});
 }
