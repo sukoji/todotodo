@@ -217,6 +217,9 @@ function showConflict(action) {
   $('#conflict-dialog').showModal();
 }
 document.addEventListener('click', async event => {
+  document.querySelectorAll('.window-menu[open]').forEach(menu => {
+    if (!menu.contains(event.target)) menu.open = false;
+  });
   const summary = event.target.closest('[data-summary]'); if (summary) {
     if (summary.dataset.summary === 'today') $('#today-list').scrollIntoView({behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start'});
     if (summary.dataset.summary === 'doing') {setView('tasks'); setTaskFilter('doing');}
@@ -477,9 +480,15 @@ document.addEventListener('keydown', event => {
   }
 });
 document.addEventListener('keydown', event => {
+  if (event.key === 'Escape' && !document.querySelector('dialog[open]')) {
+    const menu = document.querySelector('.window-menu[open]');
+    if (menu) {event.preventDefault(); menu.open = false; menu.querySelector('summary').focus();}
+  }
   if (event.ctrlKey && event.key.toLowerCase() === 'k') {event.preventDefault(); openSearch();}
   if (window.todoDesktop && event.ctrlKey && event.shiftKey && event.key.toLowerCase() === 'm') {event.preventDefault(); toggleCompact();}
   if (!desktopCompact && event.ctrlKey && event.key.toLowerCase() === 'n') {event.preventDefault(); openEditor();}
 });
 initializeDesktop().then(refresh).catch(error => toast(error.message));
+window.addEventListener('focus', refresh);
+document.addEventListener('visibilitychange', () => {if (!document.hidden) refresh();});
 setInterval(() => {if (!document.hidden) refresh();}, 20000);
