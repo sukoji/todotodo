@@ -12,6 +12,7 @@ let pendingAppClose = false;
 let pendingReminderId = null;
 let editorDraftKind = 'task';
 let searchLimit = 30;
+let taskLimit = 50;
 const editorDraftKey = 'todo-editor-drafts-v1';
 const kindName = {task: '할 일', event: '일정', idea: '아이디어'};
 const scopeName = {work: '업무', personal: '개인'};
@@ -141,11 +142,13 @@ function renderTasks(items) {
   if (state.taskFilter === 'open') results = openItems(results);
   else if (state.taskFilter === 'doing') results = results.filter(item => item.status === 'doing');
   else if (state.taskFilter === 'done') results = results.filter(item => item.status === 'done');
-  $('#task-total').textContent = `${results.length}개 항목`;
+  const visibleCount = Math.min(taskLimit, results.length);
+  $('#task-total').textContent = `${results.length}개 항목${visibleCount < results.length ? ` · ${visibleCount}개 표시` : ''}`;
   const emptyText = state.taskFilter === 'doing' ? '지금 진행 중인 일이 없어요.<br>시작할 일을 골라보세요.' : state.taskFilter === 'done' ? '아직 완료한 일이 없어요.' : '아직 할 일이 없어요.<br>첫 번째 할 일을 추가해 보세요.';
   if (!results.length) {$('#tasks-list').innerHTML = empty(emptyText); return;}
+  const more = visibleCount < results.length ? `<button class="task-more" id="task-more" type="button">다음 50개 보기 <span>${results.length-visibleCount}개 남음</span></button>` : '';
   if (state.taskFilter === 'done') {
-    $('#tasks-list').innerHTML = results.sort((a,b) => b.updated_at.localeCompare(a.updated_at)).map(item => row(item)).join('');
+    $('#tasks-list').innerHTML = results.sort((a,b) => b.updated_at.localeCompare(a.updated_at)).slice(0,visibleCount).map(item => row(item)).join('') + more;
     return;
   }
   const today = localDate(new Date()), active = openItems(results);
@@ -157,7 +160,12 @@ function renderTasks(items) {
     ['날짜 없음', active.filter(item => !item.date).sort((a,b) => Number(b.status === 'doing') - Number(a.status === 'doing') || Number(b.priority === 'high') - Number(a.priority === 'high') || b.created_at.localeCompare(a.created_at))]
   ];
   if (state.taskFilter === 'all') groups.push(['완료', results.filter(item => item.status === 'done').sort((a,b) => b.updated_at.localeCompare(a.updated_at))]);
-  $('#tasks-list').innerHTML = groups.filter(([,entries]) => entries.length).map(([label,entries]) => `<h2 class="task-group-heading">${label}<span>${entries.length}개</span></h2>${entries.map(item => row(item, true, item.status !== 'done' && item.date && item.date < today)).join('')}`).join('');
+  let shown = 0;
+  $('#tasks-list').innerHTML = groups.map(([label,entries]) => {
+    const visible = entries.slice(0, Math.max(0, visibleCount-shown));
+    shown += visible.length;
+    return visible.length ? `<h2 class="task-group-heading">${label}<span>${entries.length}개</span></h2>${visible.map(item => row(item, true, item.status !== 'done' && item.date && item.date < today)).join('')}` : '';
+  }).join('') + more;
 }
 function renderIdeas(items) {
   const ideas = items.filter(item => item.kind === 'idea').sort((a,b) => b.created_at.localeCompare(a.created_at));
@@ -284,6 +292,7 @@ function setView(view) {
 }
 function setTaskFilter(filter) {
   state.taskFilter = filter;
+  taskLimit = 50;
   document.querySelectorAll('[data-filter]').forEach(el => {const selected = el.dataset.filter === filter; el.classList.toggle('selected', selected); el.setAttribute('aria-pressed', String(selected));});
   render();
 }
@@ -484,8 +493,9 @@ document.addEventListener('click', async event => {
   }
   const view = event.target.closest('[data-view]'); if (view) return setView(view.dataset.view);
   const create = event.target.closest('[data-new]'); if (create) return openEditor(create.dataset.new);
-  const scope = event.target.closest('[data-scope]'); if (scope) {state.scope = scope.dataset.scope; if (state.scope !== 'all') {$('#compact-scope').value = state.scope; syncCompactDraftIndicator();} document.querySelectorAll('[data-scope]').forEach(el => {const selected = el === scope; el.classList.toggle('selected', selected); el.setAttribute('aria-pressed', String(selected));}); return render();}
+  const scope = event.target.closest('[data-scope]'); if (scope) {state.scope = scope.dataset.scope; taskLimit = 50; if (state.scope !== 'all') {$('#compact-scope').value = state.scope; syncCompactDraftIndicator();} document.querySelectorAll('[data-scope]').forEach(el => {const selected = el === scope; el.classList.toggle('selected', selected); el.setAttribute('aria-pressed', String(selected));}); return render();}
   const filter = event.target.closest('[data-filter]'); if (filter) return setTaskFilter(filter.dataset.filter);
+  if (event.target.closest('#task-more')) {const previous = $('#tasks-list').querySelectorAll('.item-row').length; taskLimit += 50; render(); ($('#tasks-list').querySelectorAll('.item-row')[previous]?.querySelector('[data-edit]') || $('#task-more'))?.focus(); return;}
   const day = event.target.closest('[data-day]'); if (day) return selectCalendarDay(day.dataset.day);
   const compactEdit = event.target.closest('[data-compact-edit]'); if (compactEdit) {
     const item = state.items.find(entry => entry.id === compactEdit.dataset.compactEdit);

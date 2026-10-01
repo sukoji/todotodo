@@ -55,6 +55,9 @@ body { color: var(--ink); background: var(--cream); }
 .search-more { display: flex; justify-content: space-between; align-items: center; width: 100%; margin-top: 5px; padding: 12px; border: 1px dashed #c9b7a4; border-radius: 9px; background: #fbf6ea; color: var(--ink); font-size: 12px; font-weight: 750; text-align: left; }
 .search-more:hover,.search-more:focus-visible { background: #f5e9d2; }
 .search-more span { color: #9b7f6d; font-size: 10px; font-weight: 600; }
+.task-more { display: flex; justify-content: space-between; align-items: center; width: calc(100% - 48px); margin: 16px 24px 20px; padding: 12px 14px; border: 1px dashed #c9b7a4; border-radius: 9px; background: #fbf6ea; color: var(--ink); font-size: 12px; font-weight: 750; text-align: left; }
+.task-more:hover,.task-more:focus-visible { background: #f5e9d2; }
+.task-more span { color: #9b7f6d; font-size: 10px; font-weight: 600; }
 .search-empty { padding: 23px 12px 30px; color: var(--muted); font-size: 11px; text-align: center; }
 #editor { max-height: calc(100vh - 24px); overflow-y: auto; }
 #editor::-webkit-scrollbar { width: 8px; }
