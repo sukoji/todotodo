@@ -1,5 +1,5 @@
 const $ = selector => document.querySelector(selector);
-const state = {items: [], view: 'home', scope: 'all', taskFilter: 'open', editing: null, month: new Date(), selectedDay: localDate(new Date()), preferredDay: new Date().getDate()};
+const state = {items: [], view: 'home', scope: 'all', taskFilter: 'open', calendarMode: 'month', editing: null, month: new Date(), selectedDay: localDate(new Date()), preferredDay: new Date().getDate()};
 let desktopCompact = false;
 let renderedDate = '';
 let conflictAction = null;
@@ -141,9 +141,23 @@ async function openSearch() {
 }
 function renderCalendar(items) {
   const month = state.month.getMonth(), year = state.month.getFullYear();
-  $('#calendar-month').textContent = `${year}년 ${month+1}월`;
+  const week = state.calendarMode === 'week';
   const first = new Date(year, month, 1).getDay(), days = new Date(year, month+1, 0).getDate();
-  const cells = Math.ceil((first+days)/7)*7;
+  const cells = week ? 7 : Math.ceil((first+days)/7)*7;
+  const start = week ? new Date(`${state.selectedDay}T12:00:00`) : new Date(year, month, 1-first);
+  if (week) start.setDate(start.getDate() - start.getDay());
+  const end = new Date(start.getFullYear(), start.getMonth(), start.getDate()+6);
+  $('#calendar-month').textContent = week ? `${formatDate(localDate(start))} – ${formatDate(localDate(end))}` : `${year}년 ${month+1}월`;
+  $('#calendar-view .eyebrow').textContent = week ? '한 주를 펼쳐서' : '한 달을 한눈에';
+  $('#prev-month').setAttribute('aria-label', week ? '이전 주' : '이전 달');
+  $('#next-month').setAttribute('aria-label', week ? '다음 주' : '다음 달');
+  document.querySelectorAll('[data-calendar-mode]').forEach(button => {
+    const selected = button.dataset.calendarMode === state.calendarMode;
+    button.classList.toggle('selected', selected);
+    button.setAttribute('aria-pressed', String(selected));
+  });
+  $('#calendar-grid').classList.toggle('week', week);
+  $('.calendar-layout').classList.toggle('week', week);
   const dayFormat = new Intl.DateTimeFormat('ko-KR', {year:'numeric',month:'long',day:'numeric',weekday:'long'});
   const byDate = new Map();
   for (const item of items) if (item.date) {
@@ -151,10 +165,10 @@ function renderCalendar(items) {
     byDate.get(item.date).push(item);
   }
   $('#calendar-grid').innerHTML = Array.from({length:cells}, (_,index) => {
-    const current = new Date(year, month, index-first+1), day = localDate(current);
+    const current = new Date(start.getFullYear(), start.getMonth(), start.getDate()+index), day = localDate(current);
     const matches = byDate.get(day) || [];
     const label = dayFormat.format(current);
-    return `<button class="calendar-day ${current.getMonth() !== month ? 'outside' : ''} ${day === state.selectedDay ? 'selected' : ''} ${day === localDate(new Date()) ? 'today' : ''}" data-day="${day}" tabindex="${day === state.selectedDay ? 0 : -1}" aria-label="${label}, ${matches.length}개 항목" aria-pressed="${day === state.selectedDay}"><span class="day-number">${current.getDate()}</span>${matches.slice(0,2).map(item => `<span class="calendar-dot ${item.kind === 'event' ? 'event' : ''}">${escapeHTML(item.title)}</span>`).join('')}${matches.length > 2 ? `<span class="calendar-more">+${matches.length-2}개 더</span>` : ''}</button>`;
+    return `<button class="calendar-day ${!week && current.getMonth() !== month ? 'outside' : ''} ${day === state.selectedDay ? 'selected' : ''} ${day === localDate(new Date()) ? 'today' : ''}" data-day="${day}" tabindex="${day === state.selectedDay ? 0 : -1}" aria-label="${label}, ${matches.length}개 항목" aria-pressed="${day === state.selectedDay}"><span class="day-number">${current.getDate()}</span>${matches.slice(0,2).map(item => `<span class="calendar-dot ${item.kind === 'event' ? 'event' : ''}">${week && item.time ? `<strong class="calendar-time">${escapeHTML(item.time)}</strong>` : ''}${escapeHTML(item.title)}</span>`).join('')}${matches.length > 2 ? `<span class="calendar-more">+${matches.length-2}개 더</span>` : ''}</button>`;
   }).join('');
   const selected = new Date(`${state.selectedDay}T12:00:00`);
   $('#selected-day-title').textContent = new Intl.DateTimeFormat('ko-KR',{month:'long',day:'numeric',weekday:'long'}).format(selected);
@@ -351,15 +365,27 @@ $('#conflict-force').onclick = async () => {
   } catch(error) {toast(error.message);}
   finally {button.disabled = false;}
 };
-function moveMonth(offset) {
+function moveCalendar(offset) {
+  if (state.calendarMode === 'week') {
+    const day = new Date(`${state.selectedDay}T12:00:00`);
+    day.setDate(day.getDate() + offset * 7);
+    state.month = new Date(day.getFullYear(), day.getMonth(), 1);
+    state.selectedDay = localDate(day);
+    state.preferredDay = day.getDate();
+    renderCalendar(scoped(state.items));
+    return;
+  }
   const target = new Date(state.month.getFullYear(), state.month.getMonth() + offset, 1);
   const day = Math.min(state.preferredDay, new Date(target.getFullYear(), target.getMonth() + 1, 0).getDate());
   state.month = target;
   state.selectedDay = localDate(new Date(target.getFullYear(), target.getMonth(), day));
   renderCalendar(scoped(state.items));
 }
-$('#prev-month').onclick = () => moveMonth(-1);
-$('#next-month').onclick = () => moveMonth(1);
+$('#prev-month').onclick = () => moveCalendar(-1);
+$('#next-month').onclick = () => moveCalendar(1);
+document.querySelectorAll('[data-calendar-mode]').forEach(button => {
+  button.onclick = () => {state.calendarMode = button.dataset.calendarMode; renderCalendar(scoped(state.items));};
+});
 $('#go-today').onclick = () => {const today = new Date(); state.month = today; state.selectedDay = localDate(today); state.preferredDay = today.getDate(); renderCalendar(scoped(state.items));};
 $('#calendar-grid').onkeydown = event => {
   const day = event.target.closest('.calendar-day');

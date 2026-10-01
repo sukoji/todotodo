@@ -199,6 +199,14 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .segmented { background: #ebe6d9; }
 .segmented button.selected { color: var(--ink); }
 .calendar-day.selected { background: #fff0c8; }
+.calendar-heading .calendar-tools { display: flex; align-items: center; gap: 8px; }
+.calendar-mode { flex: none; }
+.calendar-mode button { padding: 7px 10px; }
+.calendar-layout.week { grid-template-columns: minmax(0,1fr); }
+.calendar-layout.week .calendar-day-panel { min-height: 0; }
+.calendar-grid.week .calendar-day { display: flex; flex-direction: column; align-items: stretch; min-height: 145px; }
+.calendar-grid.week .calendar-dot { white-space: normal; overflow-wrap: anywhere; line-height: 1.35; font-size: 10px; }
+.calendar-grid.week .calendar-time { display: block; color: #8d6551; font-size: 9px; }
 .calendar-day:hover { background: #f2f6f1; }
 .calendar-day.today .day-number { background: var(--coral); color: var(--ink); border: 1px solid var(--ink); animation: pop-in .35s cubic-bezier(.2,1.6,.4,1); }
 .calendar-dot { background: #dfece7; color: var(--ink); }
