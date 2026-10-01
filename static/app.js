@@ -182,7 +182,7 @@ function renderIdeas(items) {
   const ideas = items.filter(item => item.kind === 'idea').sort((a,b) => b.created_at.localeCompare(a.created_at));
   const shown = Math.min(ideaLimit, ideas.length);
   $('#ideas-total').textContent = `${ideas.length}개 메모${shown < ideas.length ? ` · ${shown}개 표시` : ''}`;
-  $('#ideas-grid').innerHTML = ideas.length ? ideas.slice(0,shown).map(item => `<article class="idea-card" data-edit="${item.id}" role="button" tabindex="0" aria-label="${escapeHTML(item.title)} 수정"><div class="idea-card-top"><span>✦</span><small>${formatDate(item.created_at.slice(0,10))}</small></div><h3>${escapeHTML(item.title)}</h3><p>${escapeHTML(item.details || '메모를 추가해 보세요.')}</p><div class="idea-card-footer">${scopeName[item.scope]} ${item.tags ? '· ' + escapeHTML(item.tags) : ''}</div></article>`).join('') : empty('아이디어를 자유롭게 기록해 보세요.<br>에이전트가 남긴 아이디어도 이곳에 모입니다.');
+  $('#ideas-grid').innerHTML = ideas.length ? ideas.slice(0,shown).map(item => `<article class="idea-card"><button class="idea-card-main" type="button" data-edit="${item.id}" aria-label="${escapeHTML(item.title)} 수정"><span class="idea-card-top"><span>✦</span><small>${formatDate(item.created_at.slice(0,10))}</small></span><span class="idea-card-title">${escapeHTML(item.title)}</span><span class="idea-card-preview">${escapeHTML(item.details || '메모를 추가해 보세요.')}</span></button><div class="idea-card-footer"><span>${scopeName[item.scope]} ${item.tags ? '· ' + escapeHTML(item.tags) : ''}</span><button type="button" class="idea-promote" data-promote="${item.id}" aria-label="${escapeHTML(item.title)} 할 일로 바꾸기">할 일로 ↗</button></div></article>`).join('') : empty('아이디어를 자유롭게 기록해 보세요.<br>에이전트가 남긴 아이디어도 이곳에 모입니다.');
   $('#ideas-more').hidden = shown === ideas.length;
   $('#ideas-more span').textContent = `${ideas.length-shown}개 남음`;
 }
@@ -514,7 +514,7 @@ document.addEventListener('click', async event => {
   const scope = event.target.closest('[data-scope]'); if (scope) {state.scope = scope.dataset.scope; taskLimit = 50; todayLimit = 12; ideaLimit = 30; if (state.scope !== 'all') {$('#compact-scope').value = state.scope; syncCompactDraftIndicator();} document.querySelectorAll('[data-scope]').forEach(el => {const selected = el === scope; el.classList.toggle('selected', selected); el.setAttribute('aria-pressed', String(selected));}); return render();}
   const filter = event.target.closest('[data-filter]'); if (filter) return setTaskFilter(filter.dataset.filter);
   if (event.target.closest('#today-more')) {const previous = $('#today-list').querySelectorAll('.item-row').length; todayLimit += 12; render(); ($('#today-list').querySelectorAll('.item-row')[previous]?.querySelector('[data-edit]') || $('#today-more'))?.focus(); return;}
-  if (event.target.closest('#ideas-more')) {const previous = $('#ideas-grid').querySelectorAll('.idea-card').length; ideaLimit += 30; render(); ($('#ideas-grid').querySelectorAll('.idea-card')[previous] || $('#ideas-more'))?.focus(); return;}
+  if (event.target.closest('#ideas-more')) {const previous = $('#ideas-grid').querySelectorAll('.idea-card').length; ideaLimit += 30; render(); ($('#ideas-grid').querySelectorAll('.idea-card')[previous]?.querySelector('[data-edit]') || $('#ideas-more'))?.focus(); return;}
   if (event.target.closest('#task-more')) {const previous = $('#tasks-list').querySelectorAll('.item-row').length; taskLimit += 50; render(); ($('#tasks-list').querySelectorAll('.item-row')[previous]?.querySelector('[data-edit]') || $('#task-more'))?.focus(); return;}
   if (event.target.closest('#compact-more')) {const previous = $('#compact-list').querySelectorAll('.compact-row').length; compactLimit += 30; renderCompact(state.items); ($('#compact-list').querySelectorAll('.compact-row')[previous]?.querySelector('.compact-title') || $('#compact-more'))?.focus(); return;}
   const day = event.target.closest('[data-day]'); if (day) return selectCalendarDay(day.dataset.day);
@@ -545,6 +545,13 @@ document.addEventListener('click', async event => {
       if (error.status === 409) await refresh();
       toast(error.message);
     }
+    return;
+  }
+  const promote = event.target.closest('[data-promote]'); if (promote) {
+    const item = state.items.find(entry => entry.id === promote.dataset.promote);
+    openEditor('idea', item);
+    $('#editor-form [name="kind"][value="task"]').click();
+    $('#editor-form').elements.date.focus();
     return;
   }
   const edit = event.target.closest('[data-edit]'); if (edit) return openEditor('task',state.items.find(item => item.id === edit.dataset.edit));
@@ -618,16 +625,22 @@ $('#editor-form').addEventListener('submit', async event => {
   saveButton.disabled = true;
   try {
     const created = !state.editing;
+    const promoted = state.editing?.kind === 'idea' && data.kind === 'task';
+    const ideaPosition = promoted ? [...document.querySelectorAll('#ideas-grid .idea-card')].findIndex(card => card.querySelector(`[data-edit="${state.editing.id}"]`)) : -1;
     if (!created) data.expected_revision = state.editing.revision;
     const saved = await api(created ? '/api/items' : `/api/items/${state.editing.id}`,{method:created ? 'POST' : 'PATCH',body:JSON.stringify(data)});
     if (created) clearEditorDraft(form.elements.kind.value);
     $('#editor').close(); await refresh();
+    if (promoted && state.view === 'ideas') {
+      const cards = $('#ideas-grid').querySelectorAll('[data-edit]');
+      (cards[ideaPosition < 0 ? 0 : Math.min(ideaPosition, cards.length - 1)] || $('#ideas-view [data-new]')).focus();
+    }
     if (created && state.view === 'tasks' && saved.kind === 'task') {
       const visible = state.taskFilter === 'all' || (state.taskFilter === 'open' && saved.status !== 'done') || state.taskFilter === saved.status;
       if (!visible) setTaskFilter(saved.status === 'todo' ? 'open' : saved.status);
     }
     const repeated = data.repeat && saved.series_id ? state.items.filter(item => item.series_id === saved.series_id).length : 0;
-    toast(data.future ? '이후 반복 기록에 적용했습니다.' : repeated ? `${repeated}개 날짜에 반복 기록을 만들었어요.` : created ? '기록했습니다.' : '수정했습니다.');
+    toast(data.future ? '이후 반복 기록에 적용했습니다.' : repeated ? `${repeated}개 날짜에 반복 기록을 만들었어요.` : promoted ? '할 일로 옮겼어요.' : created ? '기록했습니다.' : '수정했습니다.');
   } catch(error) {if (error.status === 409) showConflict('save'); else toast(error.message);}
   finally {saving = false; saveButton.disabled = false;}
 });
