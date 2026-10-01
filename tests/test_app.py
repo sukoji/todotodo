@@ -49,6 +49,10 @@ class APITests(unittest.TestCase):
                 import_request.add_header("Authorization", "Bearer test-secret")
                 with urlopen(import_request) as response:
                     self.assertEqual(json.load(response), {"imported": 0, "skipped": 1})
+                large_backup = json.dumps({"format": "todotodo-v1", "items": []}).encode() + b" " * 20_000_000
+                large_request = Request(url + "/api/import", data=large_backup, headers={"Content-Type": "application/json", "Authorization": "Bearer test-secret"}, method="POST")
+                with urlopen(large_request, timeout=30) as response:
+                    self.assertEqual(json.load(response), {"imported": 0, "skipped": 0})
                 with urlopen(url + "/logo.svg") as response:
                     self.assertEqual(response.status, 200)
             finally:

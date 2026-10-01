@@ -4,11 +4,13 @@ const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 const {brief, providers} = require('./ai');
+const {MAX_BACKUP_BYTES, BACKUP_INTERVAL_MS, backupStatus, saveAutoBackup} = require('./backup');
 const {dueReminder, pruneReminderHistory} = require('./reminders');
 
 const root = path.resolve(__dirname, '..');
 app.setName('TodoTodo');
-let window, edgeWindow, edgeDisplayId, server, baseURL, authToken, dbPath, settingsPath, secretsPath, timer, boundsTimer, movingByApp = false;
+let window, edgeWindow, edgeDisplayId, server, baseURL, authToken, dbPath, settingsPath, secretsPath, backupFolder, timer, backupTimer, boundsTimer, movingByApp = false, backupRunning = false;
+let backupState = {lastAt: null, count: 0};
 const defaults = {alwaysOnTop: false, opacity: 100, notifications: true, reminderMinutes: 10, compact: false, edgeSide: 'right', normalBounds: {}, compactBounds: {}, lastDisplayId: null, reminderHistory: {}};
 let settings = {...defaults};
 
@@ -207,6 +209,18 @@ async function requestAPI(endpoint, method = 'GET', body = null) {
   return data;
 }
 
+async function checkAutoBackup(force = false) {
+  if (backupRunning) return {...backupState, busy: true};
+  backupRunning = true;
+  try {backupState = {...await saveAutoBackup(backupFolder, () => requestAPI('/api/export'), new Date(), force), error: null};}
+  catch (error) {console.error('Automatic backup failed:', error); backupState = {...backupState, error: error.message};}
+  finally {
+    backupRunning = false;
+    if (window && !window.isDestroyed()) window.webContents.send('todo:backup-status', backupState);
+  }
+  return backupState;
+}
+
 function applyWindowSettings() {
   window.setAlwaysOnTop(Boolean(settings.alwaysOnTop));
   window.setOpacity(settings.opacity / 100);
@@ -301,7 +315,9 @@ else {
     dbPath = path.join(app.getPath('userData'), 'todotodo.db');
     settingsPath = path.join(app.getPath('userData'), 'settings.json');
     secretsPath = path.join(app.getPath('userData'), 'ai-keys.json');
+    backupFolder = path.join(app.getPath('userData'), 'backups');
     loadSettings();
+    try {backupState = await backupStatus(backupFolder);} catch (error) {backupState.error = error.message;}
     session.defaultSession.setPermissionRequestHandler((_contents, _permission, callback) => callback(false));
     await startServer();
     const verifySender = event => {
@@ -317,8 +333,16 @@ else {
       const mcpConfig = app.isPackaged
         ? {command: agentExecutable(), args: [], env: {TODOTODO_DB: dbPath}}
         : {command: 'uv', args: ['run', '--with', 'mcp>=2,<3', 'python', 'mcp_server.py'], cwd: root, env: {TODOTODO_DB: dbPath}};
-      return {...settings, dbPath, mcpConfig, claudeBundleAvailable: app.isPackaged};
+      return {...settings, dbPath, mcpConfig, backup: backupState, claudeBundleAvailable: app.isPackaged};
     });
+    ipcMain.handle('todo:backup-folder', async event => {
+      verifySender(event);
+      await fs.promises.mkdir(backupFolder, {recursive: true});
+      const error = await shell.openPath(backupFolder);
+      if (error) throw new Error(error);
+      return true;
+    });
+    ipcMain.handle('todo:backup-now', event => {verifySender(event); return checkAutoBackup(true);});
     ipcMain.handle('todo:setting', (event, key, value) => {verifySender(event); return setSetting(key, value);});
     ipcMain.handle('todo:ai-status', event => {verifySender(event); const keys = readSecrets(); return {openai: Boolean(keys.openai), anthropic: Boolean(keys.anthropic)};});
     ipcMain.handle('todo:ai-key', (event, provider, key) => {verifySender(event); return saveProviderKey(provider, key);});
@@ -355,7 +379,7 @@ else {
       const selection = await dialog.showOpenDialog(window, {title: 'TodoTodo 백업 가져오기', properties: ['openFile'], filters: [{name: 'JSON', extensions: ['json']} ]});
       if (selection.canceled || !selection.filePaths[0]) return null;
       const file = selection.filePaths[0];
-      if ((await fs.promises.stat(file)).size > 20_000_000) throw new Error('20MB 이하의 백업 파일만 가져올 수 있습니다.');
+      if ((await fs.promises.stat(file)).size > MAX_BACKUP_BYTES) throw new Error('100MB 이하의 백업 파일만 가져올 수 있습니다.');
       let data;
       try {data = JSON.parse(await fs.promises.readFile(file, 'utf8'));}
       catch {throw new Error('JSON 백업 파일을 읽을 수 없습니다.');}
@@ -373,6 +397,8 @@ else {
     screen.on('display-removed', keepWindowVisible);
     timer = setInterval(checkReminders, 15000);
     checkReminders();
+    backupTimer = setInterval(checkAutoBackup, BACKUP_INTERVAL_MS);
+    checkAutoBackup();
   }).catch(error => {
     console.error(error);
     const {dialog} = require('electron');
@@ -380,5 +406,5 @@ else {
     app.quit();
   });
   app.on('window-all-closed', () => app.quit());
-  app.on('before-quit', () => {if (timer) clearInterval(timer); if (boundsTimer) clearTimeout(boundsTimer); if (server && !server.killed) server.kill();});
+  app.on('before-quit', () => {if (timer) clearInterval(timer); if (backupTimer) clearInterval(backupTimer); if (boundsTimer) clearTimeout(boundsTimer); if (server && !server.killed) server.kill();});
 }

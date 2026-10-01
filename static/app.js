@@ -360,7 +360,7 @@ $('#import-file').onchange = async event => {
   const file = event.target.files[0]; event.target.value = '';
   if (!file) return;
   try {
-    if (file.size > 20_000_000) throw new Error('20MB 이하의 백업 파일만 가져올 수 있습니다.');
+    if (file.size > 100_000_000) throw new Error('100MB 이하의 백업 파일만 가져올 수 있습니다.');
     const data = JSON.parse(await file.text());
     const result = await api('/api/import',{method:'POST',body:JSON.stringify(data)});
     await refresh(); toast(`${result.imported}개 가져옴 · ${result.skipped}개 중복`);
@@ -370,6 +370,22 @@ async function initializeDesktop() {
   if (!window.todoDesktop) return;
   document.body.classList.add('desktop-app');
   const preferences = await window.todoDesktop.state();
+  $('#export-button').closest('.connect-panel').querySelector('.backup-actions').insertAdjacentHTML('afterend', '<div class="auto-backup-block"><p id="auto-backup-status" role="status" aria-live="polite"></p><div class="auto-backup-actions"><button class="subtle-button" id="backup-now" type="button">지금 백업</button><button class="subtle-button" id="open-backup-folder" type="button">백업 폴더 열기 ↗</button></div><small>앱을 켜 둔 동안 30분마다 확인하고 최근 7일분을 보관합니다.</small></div>');
+  const showBackupStatus = status => {
+    const last = status?.lastAt ? new Intl.DateTimeFormat('ko-KR', {dateStyle:'medium',timeStyle:'short'}).format(new Date(status.lastAt)) : null;
+    const label = status?.error ? `자동 백업 실패 · ${status.error}` : status?.empty ? '기록이 비어 있어 기존 백업을 유지했습니다.' : last ? `최근 자동 백업 · ${last} · ${status.count}일분 보관` : '첫 기록을 만들면 자동 백업을 시작합니다.';
+    $('#auto-backup-status').textContent = label;
+    $('#auto-backup-status').classList.toggle('error', Boolean(status?.error));
+  };
+  showBackupStatus(preferences.backup);
+  window.todoDesktop.onBackupChanged(showBackupStatus);
+  $('#backup-now').onclick = async event => {
+    const button = event.currentTarget; button.disabled = true;
+    try {const status = await window.todoDesktop.backupNow(); showBackupStatus(status); toast(status.busy ? '백업 중입니다. 잠시 후 다시 눌러 주세요.' : status.error || (status.empty ? '백업할 기록이 없습니다.' : '현재 기록을 백업했습니다.'));}
+    catch(error) {toast(error.message);}
+    finally {button.disabled = false;}
+  };
+  $('#open-backup-folder').onclick = async () => {try {await window.todoDesktop.backupFolder();} catch(error) {toast(error.message);}};
   const config = {mcpServers:{todotodo:preferences.mcpConfig}};
   const toml = `[mcp_servers.todotodo]\ncommand = ${JSON.stringify(preferences.mcpConfig.command)}\nargs = ${JSON.stringify(preferences.mcpConfig.args)}\n[mcp_servers.todotodo.env]\nTODOTODO_DB = ${JSON.stringify(preferences.dbPath)}`;
   $('#mcp-command').insertAdjacentHTML('beforebegin', '<div class="connection-tabs"><button class="selected" id="claude-config-tab">Claude Desktop</button><button id="codex-config-tab">Codex</button></div>');

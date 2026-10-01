@@ -60,7 +60,7 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/export" and self.command == "GET":
             return self.send_data(200, {"format": "todotodo-v1", "items": list_items()})
         if path == "/api/import" and self.command == "POST":
-            return self.send_data(200, import_items(self.read_json(20_000_000)))
+            return self.send_data(200, import_items(self.read_json(100_000_000)))
         if path.startswith("/api/items/"):
             item_id = path.removeprefix("/api/items/")
             if not item_id or "/" in item_id:
