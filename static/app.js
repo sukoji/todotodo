@@ -5,6 +5,7 @@ let renderedDate = '';
 let conflictAction = null;
 let editorBaseline = '';
 let saving = false;
+let pendingAppClose = false;
 const kindName = {task: '할 일', event: '일정', idea: '아이디어'};
 const scopeName = {work: '업무', personal: '개인'};
 
@@ -216,8 +217,22 @@ function openEditor(kind = 'task', item = null) {
 }
 function requestCloseEditor() {
   if (saving) {toast('저장 중입니다.'); return;}
-  if (JSON.stringify([...new FormData($('#editor-form'))]) !== editorBaseline) $('#discard-dialog').showModal();
+  if (editorHasChanges()) $('#discard-dialog').showModal();
   else $('#editor').close();
+}
+function editorHasChanges() {
+  return $('#editor').open && JSON.stringify([...new FormData($('#editor-form'))]) !== editorBaseline;
+}
+function confirmCloseApp() {
+  window.todoDesktop.windowControl('confirm-close').catch(error => toast(error.message));
+}
+function requestCloseApp() {
+  if (saving) {toast('저장 중입니다.'); return;}
+  if ($('#discard-dialog').open) {pendingAppClose = true; return;}
+  if (editorHasChanges() || (desktopCompact && $('#compact-input').value.trim())) {
+    pendingAppClose = true;
+    $('#discard-dialog').showModal();
+  } else confirmCloseApp();
 }
 function showConflict(action) {
   conflictAction = action;
@@ -299,8 +314,15 @@ $('#editor').addEventListener('keydown', event => {
   event.stopPropagation();
   requestCloseEditor();
 });
-$('#keep-editing').onclick = () => $('#discard-dialog').close();
-$('#discard-editing').onclick = () => {$('#discard-dialog').close(); $('#editor').close();};
+$('#keep-editing').onclick = () => {pendingAppClose = false; $('#discard-dialog').close();};
+$('#discard-dialog').addEventListener('cancel', () => {pendingAppClose = false;});
+$('#discard-editing').onclick = () => {
+  const closeApp = pendingAppClose;
+  pendingAppClose = false;
+  $('#discard-dialog').close();
+  if ($('#editor').open) $('#editor').close();
+  if (closeApp) confirmCloseApp();
+};
 $('#delete-button').onclick = () => {if (!state.editing) return; if (saving) {toast('저장 중입니다.'); return;} $('#delete-item-title').textContent = state.editing.title; $('#delete-dialog').showModal();};
 $('#cancel-delete').onclick = () => $('#delete-dialog').close();
 $('#confirm-delete').onclick = async () => {
@@ -413,6 +435,7 @@ $('#import-file').onchange = async event => {
 async function initializeDesktop() {
   if (!window.todoDesktop) return;
   document.body.classList.add('desktop-app');
+  window.todoDesktop.onCloseRequested(requestCloseApp);
   const preferences = await window.todoDesktop.state();
   $('#export-button').closest('.connect-panel').querySelector('.backup-actions').insertAdjacentHTML('afterend', '<div class="auto-backup-block"><p id="auto-backup-status" role="status" aria-live="polite"></p><div class="auto-backup-actions"><button class="subtle-button" id="backup-now" type="button">지금 백업</button><button class="subtle-button" id="open-backup-folder" type="button">백업 폴더 열기 ↗</button></div><small>앱을 켜 둔 동안 30분마다 확인하고 최근 7일분을 보관합니다.</small></div>');
   const showBackupStatus = status => {

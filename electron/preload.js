@@ -16,5 +16,6 @@ contextBridge.exposeInMainWorld('todoDesktop', {
   compact: value => ipcRenderer.invoke('todo:compact', value),
   fold: () => ipcRenderer.invoke('todo:fold'),
   windowControl: action => ipcRenderer.invoke('todo:window-control', action),
+  onCloseRequested: callback => ipcRenderer.on('todo:close-request', () => callback()),
   onCompactChanged: callback => ipcRenderer.on('todo:compact', (_event, value) => callback(value))
 });

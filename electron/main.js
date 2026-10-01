@@ -1,5 +1,5 @@
 const {app, BrowserWindow, dialog, ipcMain, Notification, safeStorage, screen, session, shell, systemPreferences} = require('electron');
-const {spawn} = require('node:child_process');
+const {spawn, spawnSync} = require('node:child_process');
 const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -9,7 +9,7 @@ const {dueReminder, pruneReminderHistory} = require('./reminders');
 
 const root = path.resolve(__dirname, '..');
 app.setName('TodoTodo');
-let window, edgeWindow, edgeDisplayId, server, baseURL, authToken, dbPath, settingsPath, secretsPath, backupFolder, timer, backupTimer, boundsTimer, movingByApp = false, backupRunning = false;
+let window, edgeWindow, edgeDisplayId, server, baseURL, authToken, dbPath, settingsPath, secretsPath, backupFolder, timer, backupTimer, boundsTimer, movingByApp = false, backupRunning = false, rendererReady = false, closeApproved = false;
 let backupState = {lastAt: null, count: 0};
 const defaults = {alwaysOnTop: false, opacity: 100, notifications: true, reminderMinutes: 10, compact: false, edgeSide: 'right', normalBounds: {}, compactBounds: {}, lastDisplayId: null, reminderHistory: {}};
 let settings = {...defaults};
@@ -302,9 +302,16 @@ function createWindow() {
   window.loadFile(path.join(root, 'static', 'index.html'));
   window.webContents.on('will-navigate', event => event.preventDefault());
   window.webContents.setWindowOpenHandler(() => ({action: 'deny'}));
+  window.webContents.on('did-start-loading', () => {rendererReady = false;});
+  window.webContents.on('render-process-gone', () => {rendererReady = false;});
   const scheduleBoundsSave = () => {clearTimeout(boundsTimer); boundsTimer = setTimeout(rememberBounds, 350);};
   window.on('move', scheduleBoundsSave);
   window.on('resize', scheduleBoundsSave);
+  window.on('close', event => {
+    if (closeApproved || !rendererReady || window.webContents.isDestroyed()) return;
+    event.preventDefault();
+    window.webContents.send('todo:close-request');
+  });
   window.on('closed', () => {if (edgeWindow && !edgeWindow.isDestroyed()) edgeWindow.close(); app.quit();});
 }
 
@@ -331,6 +338,7 @@ else {
     });
     ipcMain.handle('todo:state', event => {
       verifySender(event);
+      rendererReady = true;
       const mcpConfig = app.isPackaged
         ? {command: agentExecutable(), args: [], env: {TODOTODO_DB: dbPath}}
         : {command: 'uv', args: ['run', '--with', 'mcp>=2,<3', 'python', 'mcp_server.py'], cwd: root, env: {TODOTODO_DB: dbPath}};
@@ -362,6 +370,7 @@ else {
       if (action === 'minimize') window.minimize();
       else if (action === 'maximize') {if (window.isMaximized()) window.unmaximize(); else window.maximize();}
       else if (action === 'close') window.close();
+      else if (action === 'confirm-close') {closeApproved = true; setImmediate(() => window.close());}
       else throw new Error('Unknown window action');
     });
     ipcMain.handle('todo:fold', event => {verifySender(event); foldToEdge(); return true;});
@@ -407,5 +416,15 @@ else {
     app.quit();
   });
   app.on('window-all-closed', () => app.quit());
-  app.on('before-quit', () => {if (timer) clearInterval(timer); if (backupTimer) clearInterval(backupTimer); if (boundsTimer) clearTimeout(boundsTimer); if (server && !server.killed) server.kill();});
+  app.on('before-quit', () => {
+    if (timer) clearInterval(timer);
+    if (backupTimer) clearInterval(backupTimer);
+    if (boundsTimer) clearTimeout(boundsTimer);
+    if (server && !server.killed) {
+      if (process.platform === 'win32' && server.pid) {
+        const stopped = spawnSync('taskkill', ['/PID', String(server.pid), '/T', '/F'], {windowsHide: true, stdio: 'ignore', timeout: 5000});
+        if (stopped.status !== 0) server.kill();
+      } else server.kill();
+    }
+  });
 }
