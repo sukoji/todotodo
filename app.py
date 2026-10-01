@@ -6,7 +6,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
-from store import ConflictError, create_item, day_brief, delete_item, import_items, init_db, list_items, update_item
+from store import ConflictError, change_version, create_item, day_brief, delete_item, import_items, init_db, list_items, update_item
 
 STATIC = Path(__file__).with_name("static")
 FILES = {"/": ("index.html", "text/html; charset=utf-8"),
@@ -49,6 +49,8 @@ class Handler(BaseHTTPRequestHandler):
         if self.command == "GET" and path in FILES:
             filename, content_type = FILES[path]
             return self.send_data(200, (STATIC / filename).read_bytes(), content_type)
+        if path == "/api/version" and self.command == "GET":
+            return self.send_data(200, {"version": change_version()})
         if path == "/api/items":
             if self.command == "GET":
                 params = {key: values[0] for key, values in parse_qs(parsed.query).items()}

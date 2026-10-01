@@ -86,6 +86,16 @@ def init_db():
                 db.execute(f"ALTER TABLE items ADD COLUMN {column} TEXT NOT NULL DEFAULT ''")
         db.execute("CREATE INDEX IF NOT EXISTS idx_items_date ON items(date)")
         db.execute("CREATE INDEX IF NOT EXISTS idx_items_series ON items(series_id, date)")
+        db.execute("CREATE TABLE IF NOT EXISTS change_state (id INTEGER PRIMARY KEY CHECK (id = 1), version INTEGER NOT NULL)")
+        db.execute("INSERT OR IGNORE INTO change_state (id, version) VALUES (1, 0)")
+        for action in ("INSERT", "UPDATE", "DELETE"):
+            db.execute(f"""CREATE TRIGGER IF NOT EXISTS trg_items_version_{action.lower()}
+                AFTER {action} ON items BEGIN UPDATE change_state SET version = version + 1 WHERE id = 1; END""")
+
+
+def change_version():
+    with connection() as db:
+        return db.execute("SELECT version FROM change_state WHERE id = 1").fetchone()[0]
 
 
 def validate(data, *, partial=False):

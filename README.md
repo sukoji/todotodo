@@ -81,7 +81,7 @@ npm start
 
 웹 화면만 실행하려면 `python app.py` 후 <http://127.0.0.1:8765>를 여세요. 소스 실행 시 기본 데이터 파일은 프로젝트 폴더의 `todotodo.db`입니다. `TODOTODO_DB`로 경로를 바꿀 수 있습니다.
 
-MCP 서버만 실행하려면 `uv run python mcp_server.py`를 stdio 서버로 등록하세요. 도구는 `list_entries`, `get_entry`, `capture_entry`, `revise_entry`, `mark_done`, `stop_repeat`, `get_daily_brief`입니다. `capture_entry`와 `revise_entry`에서 `repeat`와 `repeat_until`을 전달하면 반복 기록을 만들 수 있습니다. 기존 반복 기록에 `revise_entry(future=True)`를 쓰면 전달한 필드만 선택한 날짜부터 수정합니다. `stop_repeat`은 선택한 날짜부터 이후 반복을 지웁니다. 기존 기록을 고치거나 완료·중단할 때는 조회 결과의 `revision`을 `expected_revision`으로 전달하면 그 사이 다른 곳에서 바뀐 내용을 덮어쓰지 않습니다. 웹 API는 `GET/POST /api/items`, `PATCH/DELETE /api/items/{id}`, `GET /api/brief`, `GET /api/export`, `POST /api/import`를 제공합니다.
+MCP 서버만 실행하려면 `uv run python mcp_server.py`를 stdio 서버로 등록하세요. 도구는 `list_entries`, `get_entry`, `capture_entry`, `revise_entry`, `mark_done`, `stop_repeat`, `get_daily_brief`입니다. `capture_entry`와 `revise_entry`에서 `repeat`와 `repeat_until`을 전달하면 반복 기록을 만들 수 있습니다. 기존 반복 기록에 `revise_entry(future=True)`를 쓰면 전달한 필드만 선택한 날짜부터 수정합니다. `stop_repeat`은 선택한 날짜부터 이후 반복을 지웁니다. 기존 기록을 고치거나 완료·중단할 때는 조회 결과의 `revision`을 `expected_revision`으로 전달하면 그 사이 다른 곳에서 바뀐 내용을 덮어쓰지 않습니다. 웹 API는 `GET/POST /api/items`, `PATCH/DELETE /api/items/{id}`, `GET /api/version`, `GET /api/brief`, `GET /api/export`, `POST /api/import`를 제공합니다. `/api/version`은 기록이 바뀔 때만 증가하므로, 앱은 변경이 없을 때 전체 목록을 다시 읽지 않습니다.
 
 ```bash
 npm run check

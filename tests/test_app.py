@@ -22,12 +22,20 @@ class APITests(unittest.TestCase):
             thread.start()
             url = f"http://127.0.0.1:{server.server_port}"
             try:
+                version_request = Request(url + "/api/version", headers={"Authorization": "Bearer test-secret"})
+                with self.assertRaises(HTTPError) as version_error:
+                    urlopen(url + "/api/version")
+                self.assertEqual(version_error.exception.code, 401)
+                with urlopen(version_request) as response:
+                    initial_version = json.load(response)["version"]
                 with self.assertRaises(HTTPError) as error:
                     urlopen(url + "/api/items")
                 self.assertEqual(error.exception.code, 401)
                 request = Request(url + "/api/items", data=json.dumps({"title": "화면과 에이전트가 공유"}).encode(), headers={"Content-Type": "application/json", "Authorization": "Bearer test-secret"}, method="POST")
                 with urlopen(request) as response:
                     self.assertEqual(response.status, 201)
+                with urlopen(version_request) as response:
+                    self.assertGreater(json.load(response)["version"], initial_version)
                 self.assertEqual(store.list_items()[0]["title"], "화면과 에이전트가 공유")
                 item = store.list_items()[0]
                 patch_request = Request(url + f"/api/items/{item['id']}", data=json.dumps({"status": "doing", "expected_revision": 0}).encode(), headers={"Content-Type": "application/json", "Authorization": "Bearer test-secret"}, method="PATCH")

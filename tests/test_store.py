@@ -23,6 +23,26 @@ class StoreTests(unittest.TestCase):
         self.db_patch.stop()
         self.temp.cleanup()
 
+    def test_change_version_tracks_writes_but_not_reads_or_rejected_edits(self):
+        initial = store.change_version()
+        item = store.create_item({"title": "Version check"}, source="mcp")
+        created = store.change_version()
+        self.assertGreater(created, initial)
+        store.list_items()
+        self.assertEqual(store.change_version(), created)
+        with self.assertRaises(store.ConflictError):
+            store.update_item(item["id"], {"title": "Stale"}, expected_revision=1)
+        self.assertEqual(store.change_version(), created)
+        store.update_item(item["id"], {"title": "Updated"}, expected_revision=0)
+        edited = store.change_version()
+        self.assertGreater(edited, created)
+        store.delete_item(item["id"])
+        removed = store.change_version()
+        self.assertGreater(removed, edited)
+        restored = {"format": "todotodo-v3", "items": [item]}
+        self.assertEqual(store.import_items(restored)["imported"], 1)
+        self.assertGreater(store.change_version(), removed)
+
     @unittest.skipUnless(sys.platform == "win32", "Windows roaming folder lookup")
     def test_frozen_default_database_ignores_overridden_appdata(self):
         with patch.object(sys, "frozen", True, create=True):
@@ -271,6 +291,7 @@ class StoreTests(unittest.TestCase):
         self.db_patch.start()
         with ThreadPoolExecutor(max_workers=2) as pool:
             list(pool.map(lambda _: store.init_db(), range(2)))
+        self.assertEqual(store.change_version(), 0)
         with closing(sqlite3.connect(old_db)) as db:
             self.assertEqual(db.execute("PRAGMA journal_mode").fetchone()[0], "wal")
         self.assertEqual(store.get_item("a" * 32)["title"], "기존 기록")
@@ -278,6 +299,7 @@ class StoreTests(unittest.TestCase):
         self.assertEqual(store.get_item("a" * 32)["end_time"], "")
         self.assertEqual((store.get_item("a" * 32)["repeat"], store.get_item("a" * 32)["series_id"]), ("", ""))
         item = store.create_item({"title": "옛날 백업"})
+        self.assertEqual(store.change_version(), 1)
         legacy = {key: value for key, value in item.items() if key not in ("revision", "end_time", "repeat", "repeat_until", "series_id")}
         store.delete_item(item["id"])
         self.assertEqual(store.import_items({"format": "todotodo-v1", "items": [legacy]}), {"imported": 1, "skipped": 0})

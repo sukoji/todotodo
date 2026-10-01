@@ -3,6 +3,7 @@ const state = {items: [], view: 'home', scope: 'all', taskFilter: 'open', calend
 let desktopCompact = false;
 let compactKind = 'task';
 let renderedDate = '';
+let knownVersion = null;
 let conflictAction = null;
 let editorBaseline = '';
 let saving = false;
@@ -60,8 +61,14 @@ async function api(path, options = {}) {
 }
 async function refresh() {
   try {
-    const items = await api('/api/items'), today = localDate(new Date());
-    if (today === renderedDate && JSON.stringify(items) === JSON.stringify(state.items)) return;
+    const {version} = await api('/api/version'), today = localDate(new Date());
+    if (version === knownVersion) {
+      if (today !== renderedDate) {renderedDate = today; render();}
+      return;
+    }
+    const items = await api('/api/items');
+    if (knownVersion !== null && version < knownVersion) return;
+    knownVersion = version;
     state.items = items; renderedDate = today; render();
     if ($('#editor').open) renderEditorConflicts();
     if ($('#search-dialog').open) renderSearch();

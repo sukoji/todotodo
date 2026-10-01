@@ -220,7 +220,7 @@ function agentExecutable() {
 }
 
 async function requestAPI(endpoint, method = 'GET', body = null) {
-  if (typeof endpoint !== 'string' || !/^\/api\/(items(?:\/[a-f0-9]{32})?|brief|export|import)(?:\?[\w%=&+.-]*)?$/.test(endpoint)) throw new Error('허용되지 않은 경로입니다.');
+  if (typeof endpoint !== 'string' || !/^\/api\/(items(?:\/[a-f0-9]{32})?|version|brief|export|import)(?:\?[\w%=&+.-]*)?$/.test(endpoint)) throw new Error('허용되지 않은 경로입니다.');
   if (!['GET', 'POST', 'PATCH', 'DELETE'].includes(method)) throw new Error('허용되지 않은 요청입니다.');
   const response = await fetch(baseURL + endpoint, {
     method, headers: {'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json'},
