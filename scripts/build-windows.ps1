@@ -7,6 +7,9 @@ if ($LASTEXITCODE -ne 0) { throw 'Backend build failed.' }
 uv run --with pyinstaller --with 'mcp[cli]>=2,<3' python -m PyInstaller --noconfirm --clean --onefile --collect-all mcp --name todotodo-mcp --distpath build/backend --workpath build/pyinstaller/mcp --specpath build/pyinstaller mcp_server.py
 if ($LASTEXITCODE -ne 0) { throw 'MCP build failed.' }
 
+uv run python scripts/smoke-mcp.py build/backend/todotodo-mcp.exe
+if ($LASTEXITCODE -ne 0) { throw 'Packaged MCP smoke test failed.' }
+
 New-Item -ItemType Directory -Path 'build/mcpb/server' -Force | Out-Null
 Copy-Item -LiteralPath 'build/backend/todotodo-mcp.exe' -Destination 'build/mcpb/server/todotodo-mcp.exe' -Force
 Copy-Item -LiteralPath 'packaging/mcpb/manifest.json' -Destination 'build/mcpb/manifest.json' -Force

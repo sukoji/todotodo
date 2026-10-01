@@ -1,5 +1,6 @@
 """Shared SQLite storage for the web app and MCP tools."""
 
+import ctypes
 import os
 import re
 import sqlite3
@@ -9,8 +10,18 @@ from contextlib import contextmanager
 from datetime import date, datetime
 from pathlib import Path
 
-_default_db = Path(os.environ.get("APPDATA", Path.home())) / "TodoTodo" / "todotodo.db" if getattr(sys, "frozen", False) else Path(__file__).with_name("todotodo.db")
-DB_PATH = Path(os.environ.get("TODOTODO_DB", _default_db))
+def _default_db_path():
+    if not getattr(sys, "frozen", False):
+        return Path(__file__).with_name("todotodo.db")
+    if sys.platform == "win32":
+        folder = ctypes.create_unicode_buffer(260)
+        if ctypes.windll.shell32.SHGetFolderPathW(None, 0x001A, None, 0, folder) != 0:
+            raise OSError("Windows roaming app data folder is unavailable")
+        return Path(folder.value) / "TodoTodo" / "todotodo.db"
+    return Path(os.environ.get("APPDATA", Path.home())) / "TodoTodo" / "todotodo.db"
+
+
+DB_PATH = Path(os.environ["TODOTODO_DB"]) if "TODOTODO_DB" in os.environ else _default_db_path()
 KINDS = {"task", "idea", "event"}
 SCOPES = {"work", "personal"}
 STATUSES = {"todo", "doing", "done"}

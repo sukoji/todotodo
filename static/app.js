@@ -330,7 +330,10 @@ $('#compact-button').onclick = () => toggleCompact(true);
 $('#expand-button').onclick = () => toggleCompact(false);
 $('#fold-button').onclick = $('#compact-fold').onclick = async () => {try {await window.todoDesktop.fold();} catch(error) {toast(error.message);}};
 document.querySelectorAll('[data-window-action]').forEach(button => {
-  button.onclick = async () => {try {await window.todoDesktop.windowControl(button.dataset.windowAction);} catch(error) {toast(error.message);}};
+  button.onclick = async () => {
+    button.closest('.window-menu')?.removeAttribute('open');
+    try {await window.todoDesktop.windowControl(button.dataset.windowAction);} catch(error) {toast(error.message);}
+  };
 });
 $('#compact-form').onsubmit = async event => {
   event.preventDefault();

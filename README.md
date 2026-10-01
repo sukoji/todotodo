@@ -20,7 +20,7 @@ TodoTodo는 책상 한쪽에 놓아두는 작은 수첩 같은 Windows 앱입니
 
 ![작은 메모 모드](docs/compact.png)
 
-기본 Windows 제목 표시줄 없이 앱 헤더나 로고 부분을 잡아 창을 움직입니다. 창 고정과 투명도(45–100%)를 조절할 수 있습니다. 시간이 있는 일정은 정각 또는 5·10·30분 전에 알림을 보냅니다. 모니터를 옮기거나 해상도가 바뀌면 창을 화면 안으로 맞춥니다. `Ctrl+Shift+M`으로 전체 창과 작은 메모를 전환할 수 있습니다.
+기본 Windows 제목 표시줄 없이 앱 헤더나 로고 부분을 잡아 창을 움직입니다. 오른쪽 `···` 메뉴에서 최소화·최대화·닫기를 고릅니다. 창 고정과 투명도(45–100%)를 조절할 수 있습니다. 시간이 있는 일정은 정각 또는 5·10·30분 전에 알림을 보냅니다. 모니터를 옮기거나 해상도가 바뀌면 창을 화면 안으로 맞춥니다. `Ctrl+Shift+M`으로 전체 창과 작은 메모를 전환할 수 있습니다.
 창 너비가 좁아지면 로고와 메뉴를 한 줄로 접어 할 일과 일정이 바로 보이도록 배치합니다.
 PC가 잠자기에서 돌아온 뒤에도 일정 시작 5분 이내라면 놓친 알림을 전합니다. 이미 보낸 알림은 앱을 다시 켜도 중복 발송하지 않습니다.
 
@@ -42,7 +42,7 @@ TodoTodo의 기록과 알림은 AI 없이 로컬에서 동작합니다. 연결�
 | Codex | 개인 ChatGPT 로그인 + 앱에 표시된 Codex 설정 | GPT 기반 Codex가 같은 로컬 MCP 도구 사용 |
 | 앱 안의 AI 브리핑 | 개인 OpenAI 또는 Claude **API 키** | 오늘 일정 제목과 시간만 보내 실행 순서 제안 |
 
-Claude Desktop에서는 **Settings → Extensions → Advanced settings → Install Extension…**에서 `todotodo-claude-win.mcpb`를 선택하세요. Codex에서는 앱의 **연결 및 설정 → Codex**에 표시되는 내용을 `~/.codex/config.toml`에 추가하세요. 두 경우 모두 앱이 실행 중일 필요는 없지만, 같은 컴퓨터의 TodoTodo 데이터 파일을 사용합니다.
+Claude Desktop에서는 **Settings → Extensions → Advanced settings → Install Extension…**에서 `todotodo-claude-win.mcpb`를 선택하세요. Codex에서는 앱의 **연결 및 설정 → Codex**에 표시되는 내용을 `~/.codex/config.toml`에 추가하세요. 두 경우 모두 앱이 실행 중일 필요는 없지만, 같은 컴퓨터의 TodoTodo 데이터 파일을 사용합니다. 이전 버전에서 Codex를 연결했다면 앱에 표시된 설정을 한 번 다시 복사하세요. 그다음부터 설치형은 업데이트해도 실행 파일 경로가 유지됩니다. portable에서 새 MCP 기능을 쓰려면 업데이트 후 표시되는 설정을 다시 복사하세요.
 
 앱 안의 AI 브리핑은 사용자가 버튼을 누를 때만 호출됩니다. API 키는 운영체제 보안 저장소로 암호화하며, 내용 전체나 메모 본문을 자동 전송하지 않습니다. **ChatGPT·Claude 구독은 각 서비스의 API 사용료를 포함하지 않습니다.** ChatGPT 웹사이트에 로컬 앱을 직접 연결하려면 별도의 공개 MCP 연결 또는 터널이 필요합니다. TodoTodo는 이를 대신하는 서버를 운영하지 않습니다.
 
@@ -74,4 +74,4 @@ npm run check
 npm run build:win
 ```
 
-Windows 배포 빌드는 PyInstaller로 데이터 서버·MCP 서버를 묶고, Electron portable 실행 파일과 Claude 확장 파일을 생성합니다. 결과는 `release/`에 저장됩니다.
+Windows 배포 빌드는 PyInstaller로 데이터 서버·MCP 서버를 묶고, Electron 설치형·portable 실행 파일과 Claude 확장 파일을 생성합니다. 결과는 `release/`에 저장됩니다.

@@ -16,12 +16,15 @@ body { color: var(--ink); background: var(--cream); }
 .desktop-app .top-actions { app-region: no-drag; -webkit-app-region: no-drag; }
 .desktop-app .topbar { position: sticky; top: 0; z-index: 20; padding-right: 12px; }
 .desktop-app .top-actions { gap: 9px; }
-.desktop-app .window-actions { display: flex; align-items: center; gap: 4px; margin-left: 3px; }
-.chrome-button { width: 28px; height: 24px; border: 1px solid #e8dcc7; border-radius: 7px; background: #fffaf0; color: var(--ink); font-size: 16px; line-height: 1; transition: transform .18s, background .18s; app-region: no-drag; -webkit-app-region: no-drag; }
-.chrome-button:hover { background: #e6efea; transform: translateY(-1px); }
-.chrome-button:active { transform: scale(.91); }
-.chrome-close { background: #fff1e9; }
-.chrome-close:hover { background: #ef967a; }
+.desktop-app .window-actions { display: block; margin-left: 3px; }
+.window-menu { position: relative; app-region: no-drag; -webkit-app-region: no-drag; }
+.window-menu summary { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 8px; color: var(--ink); cursor: pointer; font-size: 20px; line-height: 1; list-style: none; }
+.window-menu summary::-webkit-details-marker { display: none; }
+.window-menu summary:hover,.window-menu[open] summary { background: #e6efea; }
+.window-menu summary:focus-visible { outline: 3px solid #a59bfa; outline-offset: 2px; }
+.window-menu-panel { position: absolute; top: calc(100% + 7px); right: 0; z-index: 30; width: 148px; padding: 5px; border: 1px solid #e8dcc7; border-radius: 10px; background: #fffdf7; box-shadow: 0 8px 24px #273b4726; }
+.window-menu-panel button { display: block; width: 100%; height: 32px; padding: 0 9px; border: 0; border-radius: 6px; background: transparent; color: var(--ink); font-size: 11px; text-align: left; }
+.window-menu-panel button:hover { background: #e6efea; }
 .desktop-app .sidebar { height: 100vh; top: 0; }
 .desktop-app .compact-header { user-select: none; app-region: drag; -webkit-app-region: drag; }
 .desktop-app .compact-controls button { app-region: no-drag; -webkit-app-region: no-drag; }
@@ -137,12 +140,14 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .compact-app { overflow: hidden; background: #f8f2e6; }
 .compact-app .app-shell { display: none; }
 .compact-app .compact-shell { display: flex; flex-direction: column; height: 100vh; background: #fff9e9; overflow: hidden; }
-.compact-header { height: 47px; min-height: 47px; display: flex; align-items: center; justify-content: space-between; padding: 0 11px; border-bottom: 1px solid #e7d9b9; background: #f8eecf; }
+.compact-header { position: relative; z-index: 3; height: 47px; min-height: 47px; display: flex; align-items: center; justify-content: space-between; padding: 0 11px; border-bottom: 1px solid #e7d9b9; background: #f8eecf; }
 .compact-brand { display: flex; align-items: center; gap: 5px; }
 .compact-brand strong { font-size: 14px; letter-spacing: -.6px; }
 .compact-controls { display: flex; gap: 2px; }
 .compact-controls button { border: 1px solid transparent; background: transparent; width: 25px; height: 27px; border-radius: 7px; color: var(--ink); font-size: 18px; line-height: 1; }
 .compact-controls button:hover,.compact-controls button.active { background: #fffdf7; border-color: #ddceaa; transform: scale(1.06); }
+.compact-controls .window-menu-panel button { display: block; width: 100%; height: 32px; padding: 0 9px; font-size: 11px; text-align: left; }
+.compact-controls .window-menu-panel button:hover { background: #e6efea; transform: none; }
 .compact-body { flex: 1; display: flex; flex-direction: column; min-height: 0; padding: 10px 13px 12px; }
 .compact-caption { display: flex; align-items: center; justify-content: space-between; padding-bottom: 6px; }
 .compact-caption strong { font-size: 11px; }

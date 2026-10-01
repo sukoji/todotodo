@@ -1,6 +1,7 @@
 import os
 import copy
 import sqlite3
+import sys
 import tempfile
 import unittest
 from concurrent.futures import ThreadPoolExecutor
@@ -21,6 +22,14 @@ class StoreTests(unittest.TestCase):
     def tearDown(self):
         self.db_patch.stop()
         self.temp.cleanup()
+
+    @unittest.skipUnless(sys.platform == "win32", "Windows roaming folder lookup")
+    def test_frozen_default_database_ignores_overridden_appdata(self):
+        with patch.object(sys, "frozen", True, create=True):
+            expected = store._default_db_path()
+            with patch.dict(os.environ, {"APPDATA": self.temp.name}):
+                self.assertEqual(store._default_db_path(), expected)
+        self.assertNotEqual(expected, Path(self.temp.name) / "TodoTodo" / "todotodo.db")
 
     def test_shared_workflow_and_brief(self):
         today = "2026-10-01"

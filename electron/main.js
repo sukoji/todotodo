@@ -188,6 +188,7 @@ function startServer() {
 
 function agentExecutable() {
   const source = path.join(process.resourcesPath, 'backend', 'todotodo-mcp.exe');
+  if (!process.env.PORTABLE_EXECUTABLE_DIR) return source;
   const folder = path.join(app.getPath('userData'), 'agents', app.getVersion());
   const destination = path.join(folder, 'todotodo-mcp.exe');
   if (!fs.existsSync(destination)) {
