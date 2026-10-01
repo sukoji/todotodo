@@ -903,6 +903,8 @@ async function initializeDesktop() {
   const config = {mcpServers:{todotodo:preferences.mcpConfig}};
   const toml = `[mcp_servers.todotodo]\ncommand = ${JSON.stringify(preferences.mcpConfig.command)}\nargs = ${JSON.stringify(preferences.mcpConfig.args)}\n[mcp_servers.todotodo.env]\nTODOTODO_DB = ${JSON.stringify(preferences.dbPath)}`;
   $('#mcp-command').insertAdjacentHTML('beforebegin', '<div class="connection-tabs"><button class="selected" id="claude-config-tab">Claude Desktop</button><button id="codex-config-tab">Codex</button></div>');
+  $('#mcp-command').insertAdjacentHTML('beforebegin', '<div class="connection-actions"></div>');
+  $('.connection-actions').append($('#copy-command'));
   const showConfig = mode => {
     $('#mcp-command').textContent = mode === 'codex' ? toml : JSON.stringify(config,null,2);
     $('#claude-config-tab').classList.toggle('selected',mode === 'claude');
@@ -912,7 +914,7 @@ async function initializeDesktop() {
   $('#codex-config-tab').onclick = () => showConfig('codex');
   showConfig('claude');
   if (preferences.claudeBundleAvailable) {
-    $('#copy-command').insertAdjacentHTML('afterend','<button class="subtle-button bundle-button" id="claude-bundle-button">Claude 확장 파일 찾기 ↗</button>');
+    $('.connection-actions').insertAdjacentHTML('beforeend','<button class="subtle-button bundle-button" id="claude-bundle-button">Claude 확장 파일 찾기 ↗</button>');
     $('#claude-bundle-button').onclick = async () => {if (await window.todoDesktop.claudeBundle()) toast('파일을 찾았습니다. Claude Desktop에서 확장을 설치하세요.'); else toast('확장 파일을 찾을 수 없습니다.');};
   }
   $('#always-on-top').checked = preferences.alwaysOnTop;
@@ -946,6 +948,7 @@ async function initializeDesktop() {
   $('#reminder-minutes').onchange = event => save('reminderMinutes',Number(event.target.value));
   $('#edge-side').onchange = event => save('edgeSide',event.target.value);
   $('#desktop-settings').insertAdjacentHTML('afterend', `<div class="panel connect-panel" id="ai-settings"><div class="connect-symbol">✎</div><h2>선택해서 쓰는 AI</h2><p>연결하지 않아도 TodoTodo의 모든 기본 기능을 쓸 수 있어요. 키를 등록하면 오늘 일정의 제목과 시간만 직접 요청할 때 전송합니다.</p><label class="field">제공자<select id="ai-provider"><option value="openai">OpenAI API · GPT</option><option value="anthropic">Claude API</option></select></label><label class="field">개인 API 키<input id="ai-key-input" type="password" autocomplete="off" placeholder="API 키를 입력하세요"></label><div class="ai-key-actions"><button class="subtle-button" id="save-ai-key">안전하게 저장</button><button class="subtle-button" id="remove-ai-key">연결 해제</button><span id="ai-key-status"></span></div><p class="connect-note">키는 운영체제 보안 저장소로 암호화됩니다. ChatGPT·Claude 구독과 API 사용료는 별개예요. 기존 계정으로 쓰려면 위 MCP 설정을 Codex 또는 Claude Desktop에 등록하세요.</p></div>`);
+  $('#connect-view .connect-layout').prepend($('#mcp-command').closest('.connect-panel'), $('#ai-settings'));
   $('#home-view .page-heading p').insertAdjacentHTML('afterend','<button class="ai-brief-button" id="ai-brief-button" hidden>✳ AI에게 오늘의 순서 묻기</button>');
   $('#ai-provider').value = localStorage.getItem('todo-provider') || 'openai';
   let keyStatus = await window.todoDesktop.aiStatus();
