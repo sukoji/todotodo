@@ -165,6 +165,9 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .overdue-section .item-list { padding: 8px 0 0; }
 .item-body:focus-visible,.idea-card:focus-visible { outline: 3px solid #e9a78f; outline-offset: 3px; border-radius: 5px; }
 #tasks-list:has(.item-row) { min-height: 0; }
+.task-group-heading { display: flex; align-items: baseline; gap: 7px; margin: 0; padding: 17px 24px 3px; color: #8d6551; font-size: 11px; font-weight: 800; }
+.task-group-heading:not(:first-child) { border-top: 1px dashed #e3d8c7; }
+.task-group-heading span { color: #9c978d; font-size: 9px; font-weight: 650; }
 .check-button { border-color: #9cabb0; border-radius: 6px; transition: background .18s, transform .35s cubic-bezier(.2,1.8,.4,1); }
 .check-button:hover { transform: scale(1.23) rotate(-8deg); }
 .check-button.done { background: #79b7a9; border-color: var(--ink); color: var(--ink); }

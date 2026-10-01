@@ -16,7 +16,7 @@ function escapeHTML(value) {
 function formatDate(value) {
   if (!value) return '';
   const [y,m,d] = value.split('-').map(Number);
-  return `${m}월 ${d}일`;
+  return `${y === new Date().getFullYear() ? '' : `${y}년 `}${m}월 ${d}일`;
 }
 function toast(message) {
   const el = $('#toast'); el.textContent = message; el.classList.add('show');
@@ -93,7 +93,21 @@ function renderTasks(items) {
   else if (state.taskFilter === 'done') results = results.filter(item => item.status === 'done');
   $('#task-total').textContent = `${results.length}개 항목`;
   const emptyText = state.taskFilter === 'doing' ? '지금 진행 중인 일이 없어요.<br>시작할 일을 골라보세요.' : state.taskFilter === 'done' ? '아직 완료한 일이 없어요.' : '아직 할 일이 없어요.<br>첫 번째 할 일을 추가해 보세요.';
-  $('#tasks-list').innerHTML = results.length ? results.map(item => row(item)).join('') : empty(emptyText);
+  if (!results.length) {$('#tasks-list').innerHTML = empty(emptyText); return;}
+  if (state.taskFilter === 'done') {
+    $('#tasks-list').innerHTML = results.sort((a,b) => b.updated_at.localeCompare(a.updated_at)).map(item => row(item)).join('');
+    return;
+  }
+  const today = localDate(new Date()), active = openItems(results);
+  const byTime = (a,b) => (a.time || '99:99').localeCompare(b.time || '99:99');
+  const groups = [
+    ['오늘', active.filter(item => item.date === today).sort(byTime)],
+    ['지난 날짜', active.filter(item => item.date && item.date < today).sort((a,b) => b.date.localeCompare(a.date) || byTime(a,b))],
+    ['다가오는 날', active.filter(item => item.date > today).sort((a,b) => a.date.localeCompare(b.date) || byTime(a,b))],
+    ['날짜 없음', active.filter(item => !item.date).sort((a,b) => Number(b.status === 'doing') - Number(a.status === 'doing') || Number(b.priority === 'high') - Number(a.priority === 'high') || b.created_at.localeCompare(a.created_at))]
+  ];
+  if (state.taskFilter === 'all') groups.push(['완료', results.filter(item => item.status === 'done').sort((a,b) => b.updated_at.localeCompare(a.updated_at))]);
+  $('#tasks-list').innerHTML = groups.filter(([,entries]) => entries.length).map(([label,entries]) => `<h2 class="task-group-heading">${label}<span>${entries.length}개</span></h2>${entries.map(item => row(item)).join('')}`).join('');
 }
 function renderIdeas(items) {
   const ideas = items.filter(item => item.kind === 'idea').sort((a,b) => b.created_at.localeCompare(a.created_at));
