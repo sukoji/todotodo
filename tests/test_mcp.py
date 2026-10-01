@@ -59,3 +59,36 @@ class MCPTests(unittest.TestCase):
                     self.assertEqual(store.get_item(item["id"])["end_time"], "12:00")
 
             asyncio.run(run())
+
+    def test_agent_can_move_entries_without_overwriting_newer_edits(self):
+        with tempfile.TemporaryDirectory() as folder, patch.object(store, "DB_PATH", Path(folder) / "agent.db"):
+            store.init_db()
+            item = store.create_item({"title": "아이디어", "kind": "idea", "scope": "work"})
+
+            async def run():
+                async with Client(mcp) as client:
+                    moved = await client.call_tool("revise_entry", {
+                        "item_id": item["id"], "kind": "task", "scope": "personal",
+                        "date": "2026-10-02", "expected_revision": item["revision"],
+                    })
+                    self.assertFalse(moved.is_error)
+                    current = store.get_item(item["id"])
+                    self.assertEqual((current["kind"], current["scope"], current["date"], current["revision"]),
+                                     ("task", "personal", "2026-10-02", 1))
+
+                    store.update_item(item["id"], {"title": "사용자가 고친 제목"}, expected_revision=1)
+                    stale = await client.call_tool("revise_entry", {
+                        "item_id": item["id"], "title": "이전 제목", "expected_revision": 1,
+                    })
+                    self.assertTrue(stale.is_error)
+                    self.assertIn("다른 곳에서 바뀌었습니다", stale.content[0].text)
+                    stale_done = await client.call_tool("mark_done", {"item_id": item["id"], "expected_revision": 1})
+                    self.assertTrue(stale_done.is_error)
+                    self.assertEqual((store.get_item(item["id"])["title"], store.get_item(item["id"])["status"]),
+                                     ("사용자가 고친 제목", "todo"))
+
+                    done = await client.call_tool("mark_done", {"item_id": item["id"], "expected_revision": 2})
+                    self.assertFalse(done.is_error)
+                    self.assertEqual(store.get_item(item["id"])["status"], "done")
+
+            asyncio.run(run())

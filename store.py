@@ -203,7 +203,7 @@ def update_item(item_id, data, expected_revision=None):
             if expected_revision is not None and db.execute("SELECT 1 FROM items WHERE id = ?", (item_id,)).fetchone():
                 raise ConflictError("기록이 다른 곳에서 바뀌었습니다.")
             return None
-    return get_item(item_id)
+        return dict(db.execute("SELECT * FROM items WHERE id = ?", (item_id,)).fetchone())
 
 
 def delete_item(item_id, expected_revision=None):

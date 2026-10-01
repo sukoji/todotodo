@@ -22,6 +22,17 @@ async def main(executable: Path, db: Path):
         result = await client.call_tool("list_entries", {"kind": "idea"})
         if result.is_error:
             raise RuntimeError(result)
+        with closing(sqlite3.connect(db)) as connection:
+            item_id, revision = connection.execute("SELECT id, revision FROM items WHERE title = ?", ("Release smoke test",)).fetchone()
+        result = await client.call_tool("revise_entry", {"item_id": item_id, "kind": "task", "scope": "work", "expected_revision": revision})
+        if result.is_error:
+            raise RuntimeError(result)
+        stale = await client.call_tool("revise_entry", {"item_id": item_id, "title": "Stale edit", "expected_revision": revision})
+        if not stale.is_error or "다른 곳에서 바뀌었습니다" not in stale.content[0].text:
+            raise RuntimeError("MCP stale edit was not rejected")
+        result = await client.call_tool("mark_done", {"item_id": item_id, "expected_revision": revision + 1})
+        if result.is_error:
+            raise RuntimeError(result)
         result = await client.call_tool("capture_entry", {"title": "Invalid reminder", "time": "09:30"})
         if not result.is_error or "날짜를 먼저" not in result.content[0].text:
             raise RuntimeError("MCP scheduling error was not explained")
@@ -33,10 +44,10 @@ async def main(executable: Path, db: Path):
             raise RuntimeError("MCP end-time validation was not explained")
 
     with closing(sqlite3.connect(db)) as connection:
-        count = connection.execute("SELECT count(*) FROM items WHERE title = ?", ("Release smoke test",)).fetchone()[0]
+        moved = connection.execute("SELECT kind, scope, status, revision FROM items WHERE title = ?", ("Release smoke test",)).fetchone()
         end_time = connection.execute("SELECT end_time FROM items WHERE title = ?", ("Timed meeting",)).fetchone()[0]
-    if count != 1:
-        raise RuntimeError("MCP entry was not saved to the expected database")
+    if moved != ("task", "work", "done", 2):
+        raise RuntimeError("MCP guarded edit was not saved to the expected database")
     if end_time != "11:00":
         raise RuntimeError("MCP end time was not saved to the expected database")
     print("Packaged MCP read/write and validation smoke test passed")
